@@ -5,6 +5,23 @@
 Primeiro marco do aplicativo desktop do Onda. O objetivo é reaproveitar o site
 Blazor online e adicionar captura nativa de áudio por aplicativo no Windows.
 
+## Download e demonstração
+
+- **Instalador Windows:** [última release](https://github.com/raiancollyn/ondaDesktop/releases/latest)
+- **Site do Onda:** https://onda.dpbr.net
+- **Política de assinatura:** [CODE_SIGNING.md](CODE_SIGNING.md)
+
+As releases atuais ainda não são assinadas; o Windows SmartScreen pode avisar.
+
+## Capturas
+
+| Aplicativo no Windows | Seletor de captura |
+| --- | --- |
+| ![Janela do Onda Desktop na página inicial](docs/screenshots/app-window.png) | ![Seletor de tela e áudio do Onda Desktop](docs/screenshots/capture-picker.png) |
+
+No seletor, as miniaturas das telas foram desfocadas para preservar a privacidade
+do ambiente usado na captura.
+
 ## Estado atual
 
 Implementado:

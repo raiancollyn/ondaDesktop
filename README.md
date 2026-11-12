@@ -368,3 +368,11 @@ janela aberta. **Carregar mais processos** libera a lista completa.
 2. Validar atualização/auto-update; instalação, atalhos, protocolo e desinstalação já foram testados.
 3. Assinar o executável/instalador.
 4. Depois, múltiplas exclusões e macOS/Linux.
+
+## Licença
+
+MIT. Veja [`LICENSE`](LICENSE).
+
+O copyright está como `Raian Collyn`. Se o titular legal for uma empresa, troque
+o nome no arquivo `LICENSE` antes de distribuir.
+

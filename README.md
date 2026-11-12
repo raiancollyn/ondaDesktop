@@ -34,7 +34,7 @@ Implementado:
 
 Ainda não implementado:
 
-- empacotamento/instalador, assinatura e auto-update;
+- assinatura de código, auto-update e validação do desinstalador;
 - múltiplas exclusões de áudio simultâneas;
 - macOS e Linux;
 - validação completa da transmissão em uma sala/LiveKit real.
@@ -175,6 +175,46 @@ Saída em `desktop/dist/native/`. O aplicativo procura o executável em
 `resources/native/`, `dist/native/` e no diretório de build de desenvolvimento.
 Também é possível definir `ONDA_CAPTURE_EXE`.
 
+## Empacotamento
+
+O instalador Windows é gerado com:
+
+```powershell
+npm run dist
+```
+
+Isso publica o sidecar self-contained e cria:
+
+```text
+release/Onda-Setup-0.1.0.exe
+```
+
+O instalador NSIS é **one-click**, por usuário, sem administrador. Ele instala
+em `%LOCALAPPDATA%\Programs\Onda`, cria atalhos na área de trabalho e no menu
+Iniciar, registra o protocolo `onda://` e abre o aplicativo.
+
+O build do NSIS precisa rodar em um caminho normal do Windows. Neste projeto ele
+foi validado copiando o workspace para `C:\OndaBuild` e executando o build em um
+terminal aberto pelo Explorer. Rodando de `Documents`/workspace do DSH, a etapa
+de geração do desinstalador pode falhar com código 2.
+
+Também existe o pacote ZIP como alternativa:
+
+```powershell
+npm run dist:zip
+```
+
+Ele gera `release/Onda-Setup-0.1.0.zip` com `instalar.cmd` e `install.ps1`; o
+resultado é equivalente ao instalador, mas sem entrada em Aplicativos
+instalados/desinstalador automático.
+
+Ainda falta:
+
+- assinatura de código (SmartScreen);
+- auto-update;
+- validar o desinstalador e a atualização em uma instalação real;
+- instalador ARM64.
+
 ## Estrutura
 
 ```text
@@ -271,9 +311,7 @@ janela aberta. **Carregar mais processos** libera a lista completa.
 
 ## Próximo marco
 
-1. Validar em um Windows com desktop real: captura de tela/janela, áudio de um
-   aplicativo, exclusão de aplicativo, mute, troca de tela e qualidade.
-2. Testar a publicação no LiveKit e no modo mesh.
-3. Empacotar o Electron, incluir o sidecar self-contained e criar o instalador.
-4. Implementar de-elevação/ACL para poder reativar o sandbox do Chromium.
-5. Depois, múltiplas exclusões e macOS/Linux.
+1. Validar em uma sala real com WGC, áudio por aplicativo e 60 fps.
+2. Testar instalação, atalhos, protocolo `onda://` e desinstalação.
+3. Assinar o executável/instalador e adicionar auto-update.
+4. Depois, múltiplas exclusões e macOS/Linux.

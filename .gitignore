@@ -1,5 +1,7 @@
 node_modules/
 dist/
+native-dist/
+release/
 .userdata/
 native/**/bin/
 native/**/obj/

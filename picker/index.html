@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Compartilhar no Onda</title>
+    <link rel="stylesheet" href="picker.css" />
+</head>
+<body>
+    <header class="picker-header">
+        <div class="picker-title">
+            <span class="picker-mark" aria-hidden="true">
+                <svg viewBox="0 0 36 36">
+                    <rect width="36" height="36" rx="11" fill="#cdf27c"></rect>
+                    <path d="M7.5 21.5c3.4-8.1 6.4-8.1 9.7 0 3.4 8.1 6.4 8.1 9.8 0"
+                          fill="none" stroke="#14231f" stroke-width="2.6" stroke-linecap="round"></path>
+                </svg>
+            </span>
+            <div>
+                <p class="eyebrow">CAPTURA DESKTOP</p>
+                <h1>O que você quer compartilhar?</h1>
+            </div>
+        </div>
+        <button type="button" class="icon-button" id="cancel-top" aria-label="Cancelar">
+            <span aria-hidden="true">×</span>
+        </button>
+    </header>
+
+    <main class="picker-main">
+        <div class="picker-loading" id="picker-loading" role="status">
+            <span class="picker-spinner" aria-hidden="true"></span>
+            Carregando telas, janelas e aplicativos…
+        </div>
+
+        <section class="source-section">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">1 · VÍDEO</p>
+                    <h2>Escolha uma tela ou janela</h2>
+                </div>
+                <div class="source-tabs" role="tablist" aria-label="Tipo de fonte">
+                    <button type="button" role="tab" data-kind="screen" aria-selected="true">Telas</button>
+                    <button type="button" role="tab" data-kind="window" aria-selected="false">Janelas</button>
+                </div>
+            </div>
+            <p class="section-help" id="source-help">Carregando fontes disponíveis…</p>
+            <div class="source-grid" id="source-grid" aria-live="polite"></div>
+        </section>
+
+        <section class="audio-section">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">2 · ÁUDIO</p>
+                    <h2>O que entra no som?</h2>
+                </div>
+                <span class="audio-badge" id="audio-badge">Opcional</span>
+            </div>
+
+            <div class="audio-options" id="audio-options" role="radiogroup" aria-label="Áudio"></div>
+            <p class="audio-note" id="audio-note" hidden></p>
+
+            <div class="screen-audio-extra" id="screen-audio-extra" hidden>
+                <label class="check-row" for="exclude-toggle">
+                    <input type="checkbox" id="exclude-toggle" />
+                    <span>
+                        <strong>Desativar o som de um aplicativo</strong>
+                        <small>O restante do áudio do sistema continua sendo compartilhado.</small>
+                    </span>
+                </label>
+
+                <div class="process-picker" id="process-picker" hidden>
+                    <div class="process-heading">
+                        <label class="field-label" for="process-search">Aplicativo que não deve ser compartilhado</label>
+                        <button type="button" class="load-more" id="load-more" hidden>Carregar mais processos</button>
+                    </div>
+                    <input id="process-search" class="text-input" type="search" placeholder="Filtrar aplicativos…" autocomplete="off" />
+                    <select id="process-select" class="process-select" size="8" aria-label="Aplicativo para excluir do áudio"></select>
+                    <p class="field-help" id="process-help">Escolha o processo cujo áudio será removido do compartilhamento.</p>
+                </div>
+            </div>
+
+            <p class="process-error" id="process-error" role="alert" hidden></p>
+        </section>
+    </main>
+
+    <footer class="picker-footer">
+        <p class="selection-summary" id="selection-summary">Selecione uma fonte para continuar.</p>
+        <div class="picker-actions">
+            <button type="button" class="button button-ghost" id="cancel-button">Cancelar</button>
+            <button type="button" class="button button-accent" id="confirm-button" disabled>
+                Compartilhar <span aria-hidden="true">→</span>
+            </button>
+        </div>
+    </footer>
+
+    <script src="picker.js"></script>
+</body>
+</html>

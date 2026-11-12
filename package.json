@@ -1,0 +1,16 @@
+{
+  "name": "onda-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aplicativo desktop do Onda: shell Electron para o site Blazor com captura nativa no Windows.",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "node scripts/start-electron.cjs",
+    "start:local": "node scripts/start-electron.cjs --local",
+    "native:build": "dotnet build native/OndaCapture/OndaCapture.csproj -c Release",
+    "native:publish": "dotnet publish native/OndaCapture/OndaCapture.csproj -c Release -r win-x64 --self-contained true -o dist/native"
+  },
+  "devDependencies": {
+    "electron": "^45.3.0"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.userdata/
+native/**/bin/
+native/**/obj/
+.scratch/
+*.log
+.DS_Store

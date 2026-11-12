@@ -1,5 +1,7 @@
 # Onda Desktop
 
+> [Code signing policy](CODE_SIGNING.md)
+
 Primeiro marco do aplicativo desktop do Onda. O objetivo é reaproveitar o site
 Blazor online e adicionar captura nativa de áudio por aplicativo no Windows.
 

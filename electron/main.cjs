@@ -101,7 +101,11 @@ function deepLinkToRoomUrl(rawLink) {
             return null;
         }
 
-        return `${APP_URL}/sala/${encodeURIComponent(segments[roomIndex + 1])}`;
+        const handoff = url.searchParams.get("handoff");
+        const roomUrl = `${APP_URL}/sala/${encodeURIComponent(segments[roomIndex + 1])}`;
+        return handoff
+            ? `${roomUrl}?handoff=${encodeURIComponent(handoff)}`
+            : roomUrl;
     } catch {
         return null;
     }

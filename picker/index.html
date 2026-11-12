@@ -58,28 +58,7 @@
 
             <div class="audio-options" id="audio-options" role="radiogroup" aria-label="Áudio"></div>
             <p class="audio-note" id="audio-note" hidden></p>
-
-            <div class="screen-audio-extra" id="screen-audio-extra" hidden>
-                <label class="check-row" for="exclude-toggle">
-                    <input type="checkbox" id="exclude-toggle" />
-                    <span>
-                        <strong>Desativar o som de um aplicativo</strong>
-                        <small>O restante do áudio do sistema continua sendo compartilhado.</small>
-                    </span>
-                </label>
-
-                <div class="process-picker" id="process-picker" hidden>
-                    <div class="process-heading">
-                        <label class="field-label" for="process-search">Aplicativo que não deve ser compartilhado</label>
-                        <button type="button" class="load-more" id="load-more" hidden>Carregar mais processos</button>
-                    </div>
-                    <input id="process-search" class="text-input" type="search" placeholder="Filtrar aplicativos…" autocomplete="off" />
-                    <select id="process-select" class="process-select" size="8" aria-label="Aplicativo para excluir do áudio"></select>
-                    <p class="field-help" id="process-help">Escolha o processo cujo áudio será removido do compartilhamento.</p>
-                </div>
-            </div>
-
-            <p class="process-error" id="process-error" role="alert" hidden></p>
+            <p class="process-error" id="picker-error" role="alert" hidden></p>
         </section>
     </main>
 

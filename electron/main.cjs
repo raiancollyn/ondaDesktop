@@ -662,7 +662,9 @@ function startAudioCapture(sender, request) {
     stopAudioCapture(captureId);
     const captureArgs = ["--capture"];
     if (mode === "system") {
-        captureArgs.push("--system");
+        // Exclude the whole Onda Desktop process tree so remote voices played
+        // by the app are never captured and sent back to the room.
+        captureArgs.push("--system", "--exclude-pid", String(process.pid));
     } else {
         captureArgs.push("--pid", String(pid), "--mode", mode);
     }
@@ -746,7 +748,7 @@ function startAudioCapture(sender, request) {
                     settled = true;
                     resolve({
                         captureId,
-                        pid,
+                        pid: mode === "system" ? process.pid : pid,
                         mode,
                         sampleRate: Number(header.sampleRate) || 48000,
                         channels: Number(header.channels) || 2

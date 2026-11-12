@@ -83,7 +83,7 @@ internal static class Program
               OndaCapture --list
               OndaCapture --window-pid --hwnd <hwnd>
               OndaCapture --capture --pid <pid> --mode include|exclude [--output arquivo.raw] [--duration segundos]
-              OndaCapture --capture --system [--output arquivo.raw] [--duration segundos]
+              OndaCapture --capture --system [--exclude-pid <pid>] [--output arquivo.raw] [--duration segundos]
               OndaCapture --video --kind screen --x <x> --y <y> --width <w> --height <h> [--fps 15]
               OndaCapture --video --kind window --hwnd <hwnd> [--fps 15]
 
@@ -192,7 +192,9 @@ internal static class Program
         }
 
         var pid = systemAudio
-            ? (uint)Environment.ProcessId
+            ? (TryReadUInt(args, "--exclude-pid", out var excludePid) && excludePid > 0
+                ? excludePid
+                : (uint)Environment.ProcessId)
             : ReadOption(args, "--pid") is { } pidText ? uint.Parse(pidText) : 0;
         var modeText = ReadOption(args, "--mode") ?? "include";
         var mode = systemAudio || modeText.Equals("exclude", StringComparison.OrdinalIgnoreCase)

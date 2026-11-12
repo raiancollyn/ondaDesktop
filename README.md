@@ -58,7 +58,7 @@ Implementado:
 - shell Electron que carrega `https://onda.dpbr.net` (ou `ONDA_URL`);
 - deep link `onda://sala/<codigo>`;
 - seletor de telas/janelas com thumbnails;
-- seletor de áudio por aplicativo, com sessões de áudio ativas;
+- seletor de áudio contextual (sem áudio, som do sistema ou som da janela);
 - bridge no `site.js` que substitui `getDisplayMedia` quando
   `window.ondaDesktop` existe;
 - seletor aberto dentro do `setDisplayMediaRequestHandler` do Electron;
@@ -72,23 +72,19 @@ Implementado:
   JPEG por IPC), usada quando o WGC/DXGI falha;
 - fallback final por thumbnails GDI via `desktopCapturer`;
 - seletor contextual de áudio:
-  - tela inteira: sem áudio ou som do sistema, com exclusão opcional de um
-    aplicativo;
+  - tela inteira: sem áudio ou som do sistema, sempre excluindo automaticamente
+    o próprio Onda Desktop para evitar retorno da voz dos participantes;
   - janela: sem áudio ou som do processo dono da janela;
-- lista inicial de processos em primeiro plano/abertos, com **Carregar mais
-  processos**;
 - seletor abre imediatamente com estado de carregamento, enquanto as fontes e
   miniaturas (320×180) são carregadas em segundo plano.
 
 Ainda não implementado:
 
 - assinatura de código;
+- captura simultânea de vários aplicativos selecionados;
 - múltiplas exclusões de áudio simultâneas;
 - macOS e Linux;
 - validação completa da transmissão em uma sala/LiveKit real.
-
-O menu **Captura → Testar seletor de captura** continua disponível para validar
-fontes e processos sem iniciar uma chamada.
 
 > A bridge fica no `site.js`. Para testá-la no desktop, o site precisa estar
 > atualizado — use `npm run start:local` com a instância local do Blazor ou
@@ -340,11 +336,9 @@ O site recebeu a integração em `Onda/wwwroot/js/site.js` e
 
 ## Limitações conhecidas
 
-- O `ApplicationLoopback` aceita uma árvore de processos por captura. O MVP
-  oferece uma inclusão ou uma exclusão; várias exclusões exigirão mixagem.
-- A lista de processos do Windows pode retornar títulos vazios em alguns
-  contextos. As sessões de áudio ativas são cruzadas com os processos para
-  destacar os aplicativos que estão produzindo som.
+- O `ApplicationLoopback` aceita uma árvore de processos por captura. O som do
+  sistema exclui automaticamente a árvore do Onda Desktop; capturar ou excluir
+  vários aplicativos ao mesmo tempo exigirá mixagem.
 - O shell foi validado no ambiente de desenvolvimento com `--no-sandbox` e uma
   pasta `.userdata` local: site carregado e WebSocket do Blazor conectado.
 - O fluxo de captura foi validado neste ambiente: o WGC/DXGI falhou, o
@@ -388,12 +382,10 @@ JPEG no renderer ainda não sustenta 60 fps em 720p.
 
 ### Áudio contextual
 
-- **Tela inteira:** sem áudio ou som do sistema. Com som do sistema, é possível
-  marcar **Desativar o som de um aplicativo** e escolher um processo.
+- **Tela inteira:** sem áudio ou som do sistema. O som do sistema exclui
+  automaticamente a árvore do Onda Desktop, então a voz dos participantes
+  reproduzida no app não volta pelo compartilhamento.
 - **Janela:** sem áudio ou som do processo dono da janela.
-
-A lista inicial prioriza processos com áudio ativo, em primeiro plano ou com
-janela aberta. **Carregar mais processos** libera a lista completa.
 
 > Em navegadores, o áudio é capturado por processo, não por aba. Uma janela do
 > navegador pode incluir o som de outras janelas do mesmo processo.

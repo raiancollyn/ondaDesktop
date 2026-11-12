@@ -5,11 +5,7 @@
         data: null,
         selectedSourceId: null,
         activeKind: "screen",
-        audioMode: "none",
-        excludeEnabled: false,
-        processId: null,
-        processFilter: "",
-        showAllProcesses: false
+        audioMode: "none"
     };
 
     const elements = {
@@ -19,14 +15,7 @@
         audioOptions: document.getElementById("audio-options"),
         audioBadge: document.getElementById("audio-badge"),
         audioNote: document.getElementById("audio-note"),
-        screenAudioExtra: document.getElementById("screen-audio-extra"),
-        excludeToggle: document.getElementById("exclude-toggle"),
-        processPicker: document.getElementById("process-picker"),
-        processSearch: document.getElementById("process-search"),
-        processSelect: document.getElementById("process-select"),
-        processHelp: document.getElementById("process-help"),
-        processError: document.getElementById("process-error"),
-        loadMore: document.getElementById("load-more"),
+        error: document.getElementById("picker-error"),
         loading: document.getElementById("picker-loading"),
         summary: document.getElementById("selection-summary"),
         confirm: document.getElementById("confirm-button"),
@@ -46,34 +35,19 @@
         return effectiveKind() === "screen";
     }
 
-    function selectedProcess() {
-        return state.data?.processes?.find((process) => Number(process.pid) === Number(state.processId)) || null;
-    }
-
     function canConfirm() {
         if (!state.selectedSourceId) {
             return false;
         }
 
-        if (isScreen()) {
-            if (state.audioMode !== "system") {
-                return true;
-            }
-            return !state.excludeEnabled || Boolean(selectedProcess());
-        }
-
-        return state.audioMode === "none" || state.audioMode === "window";
+        return isScreen()
+            ? state.audioMode !== "window"
+            : state.audioMode === "none" || state.audioMode === "window";
     }
 
     function audioDescription() {
-        const process = selectedProcess();
         if (isScreen()) {
-            if (state.audioMode !== "system") {
-                return "sem áudio";
-            }
-            return state.excludeEnabled
-                ? `som do sistema, exceto ${process?.name || "aplicativo"}`
-                : "som do sistema";
+            return state.audioMode === "system" ? "som do sistema" : "sem áudio";
         }
 
         return state.audioMode === "window" ? "som desta janela" : "sem áudio";
@@ -155,18 +129,15 @@
         const previousKind = effectiveKind();
         if (source.kind !== previousKind) {
             state.audioMode = "none";
-            state.excludeEnabled = false;
-            state.processId = null;
         }
         state.selectedSourceId = source.id;
         state.activeKind = source.kind;
-        if (state.audioMode !== "none" && state.audioMode !== "window" && !isScreen()) {
+        if (source.kind === "window" && state.audioMode === "system") {
             state.audioMode = "none";
         }
         if (source.kind === "screen" && state.audioMode === "window") {
             state.audioMode = "none";
         }
-        state.processId = source.kind === "window" ? null : state.processId;
         renderSources();
         renderAudioOptions();
         updateAudioUi();
@@ -177,7 +148,7 @@
         const options = isScreen()
             ? [
                 { value: "none", title: "Sem áudio", help: "Compartilha apenas o vídeo; o microfone continua separado." },
-                { value: "system", title: "Som do sistema", help: "Captura o áudio de todos os aplicativos." }
+                { value: "system", title: "Som do sistema", help: "Captura todos os aplicativos, exceto o próprio Onda Desktop." }
             ]
             : [
                 { value: "none", title: "Sem áudio", help: "Compartilha apenas a janela, sem o som dela." },
@@ -195,6 +166,7 @@
             input.addEventListener("change", () => {
                 if (input.checked) {
                     state.audioMode = option.value;
+                    clearError();
                     updateAudioUi();
                 }
             });
@@ -210,97 +182,27 @@
         }
     }
 
-    function getBaseProcesses() {
-        const processes = state.data?.processes || [];
-        if (state.showAllProcesses) {
-            return processes;
-        }
-        return processes.filter((process) => process.audioState || process.foreground || process.hasWindow);
-    }
-
-    function getFilteredProcesses() {
-        const filter = state.processFilter.toLocaleLowerCase("pt-BR");
-        return getBaseProcesses()
-            .filter((process) => {
-                if (!filter) {
-                    return true;
-                }
-                return `${process.name} ${process.title}`.toLocaleLowerCase("pt-BR").includes(filter);
-            })
-            .sort((left, right) => {
-                const score = (process) => (process.audioState ? 4 : 0) + (process.foreground ? 2 : 0) + (process.hasWindow ? 1 : 0);
-                return score(right) - score(left) ||
-                    String(left.name).localeCompare(String(right.name), "pt-BR");
-            });
-    }
-
-    function renderProcesses() {
-        const processes = getFilteredProcesses();
-        elements.processSelect.replaceChildren();
-
-        if (processes.length === 0) {
-            const option = document.createElement("option");
-            option.value = "";
-            option.textContent = state.data?.processError || "Nenhum aplicativo encontrado.";
-            elements.processSelect.appendChild(option);
-            state.processId = null;
-        } else {
-            for (const process of processes) {
-                const option = document.createElement("option");
-                option.value = String(process.pid);
-                const tags = [
-                    process.audioState ? "áudio ativo" : null,
-                    process.foreground ? "em primeiro plano" : null,
-                    process.title || null
-                ].filter(Boolean);
-                option.textContent = `${process.name}${tags.length ? ` · ${tags.join(" · ")}` : ""} · PID ${process.pid}`;
-                option.selected = Number(process.pid) === Number(state.processId);
-                elements.processSelect.appendChild(option);
-            }
-
-            if (!processes.some((process) => Number(process.pid) === Number(state.processId))) {
-                state.processId = Number(processes[0].pid);
-                elements.processSelect.value = String(state.processId);
-            }
-        }
-
-        const available = getBaseProcesses();
-        elements.loadMore.hidden = state.showAllProcesses || available.length >= (state.data?.processes?.length || 0);
-        elements.processHelp.textContent = state.showAllProcesses
-            ? "Todos os processos disponíveis."
-            : "Mostrando aplicativos com áudio, em primeiro plano ou com janela aberta.";
-        updateSummary();
-    }
-
     function updateAudioUi() {
-        const screenSystem = isScreen() && state.audioMode === "system";
-        elements.screenAudioExtra.hidden = !screenSystem;
-        elements.excludeToggle.checked = state.excludeEnabled;
-        elements.processPicker.hidden = !screenSystem || !state.excludeEnabled;
-
+        const systemAudio = isScreen() && state.audioMode === "system";
         const windowAudio = !isScreen() && state.audioMode === "window";
-        elements.audioNote.hidden = !(screenSystem || windowAudio);
-        if (screenSystem) {
-            elements.audioNote.textContent = "O som do sistema inclui todos os aplicativos. Se quiser, exclua um programa que não deve ser compartilhado.";
+        elements.audioNote.hidden = !(systemAudio || windowAudio);
+        if (systemAudio) {
+            elements.audioNote.textContent = "O Onda Desktop é excluído automaticamente do som do sistema para evitar que a voz dos participantes volte pelo compartilhamento.";
         } else if (windowAudio) {
             elements.audioNote.textContent = "Será capturado o áudio do processo dono da janela. Em navegadores, isso pode incluir outras janelas do mesmo processo.";
         }
 
-        elements.processError.hidden = !state.data?.processError;
-        if (state.data?.processError) {
-            elements.processError.textContent = `Não foi possível listar os aplicativos: ${state.data.processError}`;
-        }
+        updateSummary();
+    }
 
-        if (screenSystem && state.excludeEnabled) {
-            renderProcesses();
-        } else {
-            updateSummary();
-        }
+    function clearError() {
+        elements.error.hidden = true;
+        elements.error.textContent = "";
     }
 
     function showError(message) {
-        elements.processError.hidden = false;
-        elements.processError.textContent = message;
+        elements.error.hidden = false;
+        elements.error.textContent = message;
     }
 
     async function confirmSelection() {
@@ -308,11 +210,11 @@
             return;
         }
 
+        clearError();
         const source = selectedSource();
-        const process = selectedProcess();
         let audioMode = "none";
         if (source.kind === "screen" && state.audioMode === "system") {
-            audioMode = state.excludeEnabled && process ? "exclude" : "system";
+            audioMode = "system";
         } else if (source.kind === "window" && state.audioMode === "window") {
             audioMode = "window";
         }
@@ -324,12 +226,10 @@
                 sourceId: source.id,
                 sourceName: source.name,
                 sourceKind: source.kind,
-                audioMode,
-                processId: audioMode === "exclude" && process ? Number(process.pid) : null,
-                processName: audioMode === "exclude" ? process?.name || null : null
+                audioMode
             });
             if (!accepted) {
-                showError("O Onda não aceitou a seleção. Verifique o aplicativo escolhido e tente novamente.");
+                showError("O Onda não aceitou a seleção. Verifique a fonte escolhida e tente novamente.");
             }
         } catch (error) {
             showError(error?.message || "Não foi possível confirmar a captura.");
@@ -355,15 +255,8 @@
         const windowCount = sources.filter((source) => source.kind === "window").length;
         elements.sourceHelp.textContent = `${screenCount} tela(s) e ${windowCount} janela(s) encontradas.`;
 
-        if (data?.processError) {
-            showError(`Não foi possível listar os aplicativos: ${data.processError}`);
-        }
-
         if (state.selectedSourceId && !sources.some((source) => source.id === state.selectedSourceId)) {
             state.selectedSourceId = null;
-        }
-        if (!state.selectedSourceId && sources.some((source) => source.kind === state.activeKind)) {
-            // Keep the explicit selection: the user should choose a source.
         }
 
         renderSources();
@@ -381,36 +274,13 @@
                 state.activeKind = tab.dataset.kind;
                 state.selectedSourceId = null;
                 state.audioMode = "none";
-                state.excludeEnabled = false;
-                state.processId = null;
-                state.processFilter = "";
-                elements.processSearch.value = "";
+                clearError();
                 renderSources();
                 renderAudioOptions();
                 updateAudioUi();
             });
         });
 
-        elements.excludeToggle.addEventListener("change", () => {
-            state.excludeEnabled = elements.excludeToggle.checked;
-            if (state.excludeEnabled && !state.processId) {
-                state.processId = getFilteredProcesses()[0]?.pid || null;
-            }
-            updateAudioUi();
-        });
-
-        elements.processSelect.addEventListener("change", () => {
-            state.processId = Number(elements.processSelect.value) || null;
-            updateSummary();
-        });
-        elements.processSearch.addEventListener("input", () => {
-            state.processFilter = elements.processSearch.value;
-            renderProcesses();
-        });
-        elements.loadMore.addEventListener("click", () => {
-            state.showAllProcesses = true;
-            renderProcesses();
-        });
         elements.confirm.addEventListener("click", confirmSelection);
         elements.cancel.addEventListener("click", cancel);
         elements.cancelTop.addEventListener("click", cancel);

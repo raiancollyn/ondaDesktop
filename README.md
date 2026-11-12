@@ -34,7 +34,7 @@ Implementado:
 
 Ainda não implementado:
 
-- assinatura de código, auto-update e validação do desinstalador;
+- assinatura de código e auto-update;
 - múltiplas exclusões de áudio simultâneas;
 - macOS e Linux;
 - validação completa da transmissão em uma sala/LiveKit real.
@@ -212,7 +212,7 @@ Ainda falta:
 
 - assinatura de código (SmartScreen);
 - auto-update;
-- validar o desinstalador e a atualização em uma instalação real;
+- validar a atualização em uma instalação real;
 - instalador ARM64.
 
 ## Estrutura
@@ -312,6 +312,6 @@ janela aberta. **Carregar mais processos** libera a lista completa.
 ## Próximo marco
 
 1. Validar em uma sala real com WGC, áudio por aplicativo e 60 fps.
-2. Testar instalação, atalhos, protocolo `onda://` e desinstalação.
-3. Assinar o executável/instalador e adicionar auto-update.
+2. Validar atualização/auto-update; instalação, atalhos, protocolo e desinstalação já foram testados.
+3. Assinar o executável/instalador.
 4. Depois, múltiplas exclusões e macOS/Linux.

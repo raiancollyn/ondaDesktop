@@ -80,6 +80,148 @@ const audioCaptures = new Map();
 const thumbnailCaptures = new Map();
 const videoCaptures = new Map();
 const windowProcessCache = new Map();
+const WINDOW_STATE_PATH = path.join(userDataPath, "window-state.json");
+let lastNormalBounds = null;
+let windowStateSaveTimer = null;
+let windowStateReady = false;
+
+function intersects(a, b) {
+    return a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y;
+}
+
+function readSavedWindowState() {
+    try {
+        const raw = fs.readFileSync(WINDOW_STATE_PATH, "utf8");
+        const state = JSON.parse(raw);
+        const bounds = state?.bounds;
+        if (!bounds ||
+            !Number.isFinite(bounds.x) ||
+            !Number.isFinite(bounds.y) ||
+            !Number.isFinite(bounds.width) ||
+            !Number.isFinite(bounds.height)) {
+            return null;
+        }
+
+        return {
+            bounds: {
+                x: Math.round(bounds.x),
+                y: Math.round(bounds.y),
+                width: Math.round(bounds.width),
+                height: Math.round(bounds.height)
+            },
+            displayId: Number.isFinite(state?.displayId) ? Number(state.displayId) : null,
+            maximized: Boolean(state.maximized),
+            fullscreen: Boolean(state.fullscreen)
+        };
+    } catch {
+        return null;
+    }
+}
+
+function getStartingWindowState() {
+    const saved = readSavedWindowState();
+    const primary = screen.getPrimaryDisplay();
+    const defaultWidth = 1440;
+    const defaultHeight = 960;
+    const primaryArea = primary.workArea;
+    const primaryBounds = {
+        x: primaryArea.x + Math.max(0, Math.round((primaryArea.width - Math.min(defaultWidth, primaryArea.width)) / 2)),
+        y: primaryArea.y + Math.max(0, Math.round((primaryArea.height - Math.min(defaultHeight, primaryArea.height)) / 2)),
+        width: Math.min(defaultWidth, primaryArea.width),
+        height: Math.min(defaultHeight, primaryArea.height)
+    };
+
+    if (!saved) {
+        return { bounds: primaryBounds, maximized: false, fullscreen: false };
+    }
+
+    const displays = screen.getAllDisplays();
+    const savedDisplay = saved.displayId === null
+        ? null
+        : displays.find((display) => display.id === saved.displayId) || null;
+    const hasVisibleArea = displays.some((display) => intersects(saved.bounds, display.workArea));
+    if (!hasVisibleArea || (saved.displayId !== null && !savedDisplay)) {
+        return {
+            bounds: primaryBounds,
+            maximized: saved.maximized,
+            fullscreen: saved.fullscreen
+        };
+    }
+
+    const display = savedDisplay || screen.getDisplayMatching(saved.bounds);
+    const area = display.workArea;
+    const width = Math.min(Math.max(960, saved.bounds.width), area.width);
+    const height = Math.min(Math.max(640, saved.bounds.height), area.height);
+    const x = Math.min(Math.max(saved.bounds.x, area.x), area.x + area.width - width);
+    const y = Math.min(Math.max(saved.bounds.y, area.y), area.y + area.height - height);
+
+    return {
+        bounds: { x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) },
+        maximized: saved.maximized,
+        fullscreen: saved.fullscreen
+    };
+}
+
+function rememberNormalBounds() {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+    }
+
+    if (!mainWindow.isMaximized() && !mainWindow.isFullScreen()) {
+        lastNormalBounds = mainWindow.getBounds();
+    }
+}
+
+function collectWindowState() {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+        return null;
+    }
+
+    const maximized = mainWindow.isMaximized();
+    const fullscreen = mainWindow.isFullScreen();
+    const normal = lastNormalBounds || mainWindow.getBounds();
+    const bounds = maximized || fullscreen ? normal : mainWindow.getBounds();
+    const display = screen.getDisplayMatching(bounds);
+    return {
+        bounds,
+        displayId: display?.id ?? null,
+        maximized,
+        fullscreen
+    };
+}
+
+function writeWindowState() {
+    const state = collectWindowState();
+    if (!state) {
+        return;
+    }
+
+    try {
+        const temporary = `${WINDOW_STATE_PATH}.tmp`;
+        fs.writeFileSync(temporary, JSON.stringify(state, null, 2), "utf8");
+        fs.renameSync(temporary, WINDOW_STATE_PATH);
+    } catch (error) {
+        console.warn("Não foi possível salvar o estado da janela:", error.message);
+    }
+}
+
+function scheduleWindowStateSave() {
+    if (!windowStateReady) {
+        return;
+    }
+
+    if (windowStateSaveTimer) {
+        clearTimeout(windowStateSaveTimer);
+    }
+
+    windowStateSaveTimer = setTimeout(() => {
+        windowStateSaveTimer = null;
+        writeWindowState();
+    }, 350);
+}
 
 function isSameSite(url) {
     try {
@@ -339,13 +481,23 @@ async function openCapturePicker() {
     pickerData = null;
     pendingSelection = null;
     const theme = await readMainTheme();
+    const mainDisplay = mainWindow && !mainWindow.isDestroyed()
+        ? screen.getDisplayMatching(mainWindow.getBounds())
+        : screen.getPrimaryDisplay();
+    const workArea = mainDisplay.workArea;
+    const pickerWidth = Math.min(1080, Math.max(640, workArea.width - 32));
+    const pickerHeight = Math.min(760, Math.max(520, workArea.height - 32));
+    const pickerX = workArea.x + Math.round((workArea.width - pickerWidth) / 2);
+    const pickerY = workArea.y + Math.round((workArea.height - pickerHeight) / 2);
 
     return new Promise((resolve) => {
         const picker = new BrowserWindow({
-            width: 1080,
-            height: 760,
-            minWidth: 820,
-            minHeight: 620,
+            width: pickerWidth,
+            height: pickerHeight,
+            x: pickerX,
+            y: pickerY,
+            minWidth: Math.min(820, pickerWidth),
+            minHeight: Math.min(620, pickerHeight),
             parent: mainWindow || undefined,
             modal: Boolean(mainWindow),
             frame: false,
@@ -1242,9 +1394,15 @@ function setupAutoUpdater() {
 }
 
 function createMainWindow() {
+    const startingState = getStartingWindowState();
+    lastNormalBounds = startingState.bounds;
+    windowStateReady = false;
+
     mainWindow = new BrowserWindow({
-        width: 1440,
-        height: 960,
+        x: startingState.bounds.x,
+        y: startingState.bounds.y,
+        width: startingState.bounds.width,
+        height: startingState.bounds.height,
         minWidth: 960,
         minHeight: 640,
         frame: false,
@@ -1259,27 +1417,62 @@ function createMainWindow() {
         }
     });
 
+    let restored = false;
+    const showMainWindow = () => {
+        if (restored || !mainWindow || mainWindow.isDestroyed()) {
+            return;
+        }
+
+        restored = true;
+        if (startingState.fullscreen) {
+            mainWindow.setFullScreen(true);
+        } else if (startingState.maximized) {
+            mainWindow.maximize();
+        }
+        mainWindow.show();
+        windowStateReady = true;
+    };
+
     mainWindow.once("ready-to-show", () => {
         console.log("Janela principal pronta; exibindo.");
-        mainWindow.show();
+        showMainWindow();
     });
 
     mainWindow.on("maximize", () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send("onda:window:maximized", true);
+            scheduleWindowStateSave();
         }
     });
 
     mainWindow.on("unmaximize", () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send("onda:window:maximized", false);
+            rememberNormalBounds();
+            scheduleWindowStateSave();
         }
+    });
+
+    const updateWindowState = () => {
+        rememberNormalBounds();
+        scheduleWindowStateSave();
+    };
+    mainWindow.on("move", updateWindowState);
+    mainWindow.on("resize", updateWindowState);
+    mainWindow.on("enter-full-screen", scheduleWindowStateSave);
+    mainWindow.on("leave-full-screen", updateWindowState);
+    mainWindow.on("close", () => {
+        if (windowStateSaveTimer) {
+            clearTimeout(windowStateSaveTimer);
+            windowStateSaveTimer = null;
+        }
+        writeWindowState();
     });
 
     const showFallback = setTimeout(() => {
         if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
             console.warn("ready-to-show não disparou em 10 s; exibindo a janela mesmo assim.");
-            mainWindow.show();
+            showMainWindow();
         }
     }, 10000);
 
@@ -1442,6 +1635,7 @@ if (!gotSingleInstanceLock) {
 }
 
 app.on("before-quit", () => {
+    writeWindowState();
     stopAllAudioCaptures();
     stopAllThumbnailCaptures();
     stopAllVideoCaptures();

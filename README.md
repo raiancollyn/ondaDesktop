@@ -63,6 +63,9 @@ Implementado:
 - seletor de áudio contextual (sem áudio, som do sistema ou som da janela);
 - janela do seletor com barra personalizada e tema claro/escuro herdado da
   preferência do site ou do sistema;
+- memória de posição, tamanho, monitor e estado maximizado/tela cheia da janela
+  principal; o seletor de captura abre no monitor onde o app está, com fallback
+  para o monitor principal quando o anterior não existe mais;
 - bridge no `site.js` que substitui `getDisplayMedia` quando
   `window.ondaDesktop` existe;
 - seletor aberto dentro do `setDisplayMediaRequestHandler` do Electron;

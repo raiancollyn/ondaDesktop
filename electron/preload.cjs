@@ -1,4 +1,5 @@
 const { contextBridge, ipcRenderer } = require("electron");
+const installDesktopUi = require("./desktop-ui.cjs");
 
 contextBridge.exposeInMainWorld("ondaDesktop", Object.freeze({
     isDesktop: true,
@@ -39,3 +40,5 @@ contextBridge.exposeInMainWorld("ondaDesktop", Object.freeze({
         return () => ipcRenderer.removeListener("onda:audio:stopped", listener);
     }
 }));
+
+installDesktopUi(ipcRenderer);

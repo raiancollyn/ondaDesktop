@@ -15,12 +15,41 @@ As releases atuais ainda não são assinadas; o Windows SmartScreen pode avisar.
 
 ## Capturas
 
-| Aplicativo no Windows | Seletor de captura |
+| Aplicativo no Windows | Menu |
 | --- | --- |
-| ![Janela do Onda Desktop na página inicial](docs/screenshots/app-window.png) | ![Seletor de tela e áudio do Onda Desktop](docs/screenshots/capture-picker.png) |
+| ![Janela personalizada do Onda Desktop](docs/screenshots/app-window.png) | ![Menu hamburger do Onda Desktop](docs/screenshots/desktop-menu.png) |
+
+| Seletor de captura |
+| --- |
+| ![Seletor de tela e áudio do Onda Desktop](docs/screenshots/capture-picker.png) |
 
 No seletor, as miniaturas das telas foram desfocadas para preservar a privacidade
 do ambiente usado na captura.
+
+## Janela e menu
+
+A janela usa uma moldura personalizada, com cores e tipografia alinhadas ao site
+do Onda. O menu nativo do Windows foi removido.
+
+O botão hamburger no canto superior esquerdo abre:
+
+- **Início**;
+- **Recarregar**;
+- **Verificar atualizações**;
+- **Sobre o Onda**;
+- **Abrir site no navegador**;
+- **Sair**.
+
+O antigo item **Captura** saiu do menu. O seletor de captura continua sendo
+aberto pelo próprio site quando o usuário compartilha uma tela.
+
+A janela personalizada inclui minimizar, maximizar/restaurar e fechar. O tema
+claro/escuro do site também é aplicado à barra de título, ao menu e aos diálogos.
+
+As atualizações agora são verificadas manualmente pelo menu e o aviso de versão
+baixada é um diálogo estilizado, com opções **Reiniciar agora** e **Depois**, em
+vez do diálogo nativo do Windows. A verificação automática continua acontecendo
+em segundo plano.
 
 ## Estado atual
 

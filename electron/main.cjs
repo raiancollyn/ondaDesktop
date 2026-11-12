@@ -69,6 +69,7 @@ const SIDECAR_EXE = process.platform === "win32" ? "OndaCapture.exe" : "OndaCapt
 
 let mainWindow = null;
 let pickerWindow = null;
+let autoUpdaterInstance = null;
 let pickerData = null;
 let pendingSelection = null;
 let pendingDeepLink = process.argv.find((argument) => argument.startsWith(`${PROTOCOL}://`)) || null;
@@ -830,12 +831,100 @@ function resolveWindowProcess(sourceId) {
 }
 
 function registerIpc() {
+    const fromMainWindow = (event) =>
+        Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents);
+
     ipcMain.handle("onda:get-app-info", () => ({
         version: app.getVersion(),
+        electron: process.versions.electron,
         platform: process.platform,
         isPackaged: app.isPackaged,
         siteUrl: APP_URL
     }));
+
+    ipcMain.on("onda:window:minimize", (event) => {
+        if (fromMainWindow(event)) {
+            mainWindow.minimize();
+        }
+    });
+
+    ipcMain.on("onda:window:toggle-maximize", (event) => {
+        if (!fromMainWindow(event)) {
+            return;
+        }
+
+        if (mainWindow.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow.maximize();
+        }
+    });
+
+    ipcMain.on("onda:window:close", (event) => {
+        if (fromMainWindow(event)) {
+            mainWindow.close();
+        }
+    });
+
+    ipcMain.handle("onda:window:is-maximized", (event) =>
+        fromMainWindow(event) && mainWindow.isMaximized());
+
+    ipcMain.on("onda:navigate-home", (event) => {
+        if (fromMainWindow(event)) {
+            mainWindow.loadURL(APP_URL);
+        }
+    });
+
+    ipcMain.on("onda:reload", (event) => {
+        if (fromMainWindow(event)) {
+            mainWindow.reload();
+        }
+    });
+
+    ipcMain.on("onda:open-site", (event) => {
+        if (fromMainWindow(event)) {
+            shell.openExternal(APP_URL);
+        }
+    });
+
+    ipcMain.on("onda:quit", (event) => {
+        if (fromMainWindow(event)) {
+            app.quit();
+        }
+    });
+
+    ipcMain.handle("onda:check-updates", async (event) => {
+        if (!fromMainWindow(event)) {
+            return { state: "error", message: "Origem não autorizada." };
+        }
+
+        if (!app.isPackaged) {
+            return { state: "not-packaged" };
+        }
+
+        if (!autoUpdaterInstance) {
+            return { state: "error", message: "Atualizador indisponível." };
+        }
+
+        try {
+            await autoUpdaterInstance.checkForUpdates();
+            return { state: "started" };
+        } catch (error) {
+            return {
+                state: "error",
+                message: String(error?.message || error)
+            };
+        }
+    });
+
+    ipcMain.handle("onda:update:install", (event) => {
+        if (!fromMainWindow(event) || !autoUpdaterInstance) {
+            return false;
+        }
+
+        autoUpdaterInstance.quitAndInstall();
+        return true;
+    });
 
     ipcMain.handle("onda:list-processes", () => runSidecarList());
     ipcMain.handle("onda:open-picker", () => openCapturePicker());
@@ -946,74 +1035,14 @@ function registerIpc() {
 }
 
 function createMenu() {
-    const template = [
-        {
-            label: "Onda",
-            submenu: [
-                { role: "about" },
-                { type: "separator" },
-                { role: "quit" }
-            ]
-        },
-        {
-            label: "Ver",
-            submenu: [
-                { role: "reload" },
-                { role: "toggleDevTools" },
-                { type: "separator" },
-                { role: "resetZoom" },
-                { role: "zoomIn" },
-                { role: "zoomOut" },
-                { type: "separator" },
-                { role: "togglefullscreen" }
-            ]
-        },
-        {
-            label: "Captura",
-            submenu: [
-                {
-                    label: "Testar seletor de captura",
-                    accelerator: "CmdOrCtrl+Shift+C",
-                    click: async () => {
-                        const selection = await openCapturePicker();
-                        if (!selection) {
-                            return;
-                        }
-                        if (selection.error) {
-                            await dialog.showMessageBox(mainWindow, {
-                                type: "error",
-                                title: "Captura",
-                                message: "Não foi possível abrir o seletor.",
-                                detail: selection.error
-                            });
-                            return;
-                        }
-                        await dialog.showMessageBox(mainWindow, {
-                            type: "info",
-                            title: "Seleção de captura",
-                            message: "Seletor funcionando.",
-                            detail: [
-                                `Fonte: ${selection.sourceName}`,
-                                `Áudio: ${selection.audioMode}`,
-                                selection.processName ? `Aplicativo: ${selection.processName} (${selection.processId})` : null
-                            ].filter(Boolean).join("\n")
-                        });
-                    }
-                }
-            ]
-        },
-        {
-            label: "Ajuda",
-            submenu: [
-                {
-                    label: "Abrir site no navegador",
-                    click: () => shell.openExternal(APP_URL)
-                }
-            ]
-        }
-    ];
+    // The window uses the custom desktop chrome injected by the preload.
+    Menu.setApplicationMenu(null);
+}
 
-    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+function sendUpdateStatus(payload) {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send("onda:update-status", payload);
+    }
 }
 
 function setupAutoUpdater() {
@@ -1029,46 +1058,40 @@ function setupAutoUpdater() {
         return;
     }
 
+    autoUpdaterInstance = updater;
     updater.autoDownload = true;
     updater.autoInstallOnAppQuit = true;
 
     updater.on("error", (error) => {
         console.error("Falha no auto-update:", error?.message || error);
+        sendUpdateStatus({
+            state: "error",
+            message: String(error?.message || error)
+        });
     });
+
     updater.on("checking-for-update", () => {
         console.log("Auto-update: verificando atualizações.");
+        sendUpdateStatus({ state: "checking" });
     });
+
     updater.on("update-available", (info) => {
         console.log("Auto-update: versão disponível:", info.version);
+        sendUpdateStatus({ state: "available", version: info.version });
     });
+
     updater.on("update-not-available", () => {
         console.log("Auto-update: já está na versão mais recente.");
+        sendUpdateStatus({ state: "current", version: app.getVersion() });
     });
-    updater.on("update-downloaded", async (info) => {
+
+    updater.on("update-downloaded", (info) => {
         console.log("Auto-update: versão baixada:", info.version);
-        try {
-            const options = {
-                type: "info",
-                title: "Atualização do Onda",
-                message: `A versão ${info.version} do Onda foi baixada.`,
-                detail: "Reinicie agora para aplicar a atualização. Se preferir, ela será aplicada quando você fechar o aplicativo.",
-                buttons: ["Reiniciar agora", "Depois"],
-                defaultId: 0,
-                cancelId: 1
-            };
-            const result = mainWindow
-                ? await dialog.showMessageBox(mainWindow, options)
-                : await dialog.showMessageBox(options);
-            if (result.response === 0) {
-                updater.quitAndInstall();
-            }
-        } catch (error) {
-            console.error("Auto-update: falha ao perguntar sobre a atualização:", error);
-        }
+        sendUpdateStatus({ state: "downloaded", version: info.version });
     });
 
     const check = () => {
-        updater.checkForUpdatesAndNotify().catch((error) => {
+        updater.checkForUpdates().catch((error) => {
             console.warn("Auto-update: verificação falhou:", error?.message || error);
         });
     };
@@ -1083,6 +1106,7 @@ function createMainWindow() {
         height: 960,
         minWidth: 960,
         minHeight: 640,
+        frame: false,
         show: false,
         title: "Onda",
         backgroundColor: "#0c1916",
@@ -1097,6 +1121,18 @@ function createMainWindow() {
     mainWindow.once("ready-to-show", () => {
         console.log("Janela principal pronta; exibindo.");
         mainWindow.show();
+    });
+
+    mainWindow.on("maximize", () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("onda:window:maximized", true);
+        }
+    });
+
+    mainWindow.on("unmaximize", () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("onda:window:maximized", false);
+        }
     });
 
     const showFallback = setTimeout(() => {

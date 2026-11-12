@@ -172,6 +172,13 @@ internal static class Program
                 .OrderByDescending(entry => entry.Foreground)
                 .ThenBy(entry => entry.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ThenBy(entry => entry.Pid),
+            windows = windows.Windows.Select(entry => new
+            {
+                hwnd = entry.Hwnd,
+                pid = entry.Pid,
+                title = entry.Title,
+                taskbar = entry.Taskbar
+            }),
             audioSessions = ReadAudioSessions(),
             foregroundPid = windows.ForegroundPid
         }, JsonOptions);

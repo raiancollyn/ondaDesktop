@@ -128,6 +128,7 @@ function runSidecarList() {
     if (!executable) {
         return Promise.resolve({
             processes: [],
+            windows: [],
             error: "OndaCapture não encontrado. Execute npm run native:build."
         });
     }
@@ -142,7 +143,7 @@ function runSidecarList() {
         let stderr = "";
         const timeout = setTimeout(() => {
             child.kill();
-            resolve({ processes: [], error: "Tempo esgotado ao listar os processos." });
+            resolve({ processes: [], windows: [], error: "Tempo esgotado ao listar os processos." });
         }, 8000);
 
         child.stdout.on("data", (chunk) => {
@@ -153,12 +154,12 @@ function runSidecarList() {
         });
         child.on("error", (error) => {
             clearTimeout(timeout);
-            resolve({ processes: [], error: error.message });
+            resolve({ processes: [], windows: [], error: error.message });
         });
         child.on("close", (code) => {
             clearTimeout(timeout);
             if (code !== 0) {
-                resolve({ processes: [], error: stderr.trim() || `OndaCapture saiu com código ${code}.` });
+                resolve({ processes: [], windows: [], error: stderr.trim() || `OndaCapture saiu com código ${code}.` });
                 return;
             }
 
@@ -168,6 +169,7 @@ function runSidecarList() {
                 const json = start >= 0 && end > start ? stdout.slice(start, end + 1) : stdout;
                 const data = JSON.parse(json);
                 const processes = Array.isArray(data.processes) ? data.processes : [];
+                const windows = Array.isArray(data.windows) ? data.windows : [];
                 const audioSessions = Array.isArray(data.audioSessions) ? data.audioSessions : [];
                 const foregroundPid = Number(data.foregroundPid) || 0;
                 const byPid = new Map(processes.map((process) => [Number(process.pid), process]));
@@ -200,14 +202,14 @@ function runSidecarList() {
                         String(left.name).localeCompare(String(right.name), "pt-BR");
                 });
 
-                resolve({ processes, error: null, foregroundPid });
+                resolve({ processes, windows, error: null, foregroundPid });
             } catch (error) {
                 console.error("Resposta inválida do OndaCapture.", {
                     stdout: stdout.slice(0, 1000),
                     stderr: stderr.slice(-1000),
                     error: error.message
                 });
-                resolve({ processes: [], error: "Resposta inválida do OndaCapture." });
+                resolve({ processes: [], windows: [], error: "Resposta inválida do OndaCapture." });
             }
         });
     });
@@ -245,13 +247,33 @@ async function buildPickerData() {
         }
     }
 
+    const taskbarWindows = new Set(
+        (Array.isArray(processResult.windows) ? processResult.windows : [])
+            .filter((window) => window?.taskbar)
+            .map((window) => Number(window.hwnd))
+            .filter((hwnd) => Number.isFinite(hwnd) && hwnd > 0)
+    );
+    const filterWindowSources = Array.isArray(processResult.windows) && !processResult.error;
+    const visibleSources = sources.filter((source) => {
+        if (source.id.startsWith("screen:")) {
+            return true;
+        }
+
+        if (!filterWindowSources) {
+            return true;
+        }
+
+        const match = /^window:(\d+)/.exec(source.id);
+        return !match || taskbarWindows.has(Number(match[1]));
+    });
+
     captureSourceObjects.clear();
-    for (const source of sources) {
+    for (const source of visibleSources) {
         captureSourceObjects.set(source.id, source);
     }
 
     return {
-        sources: sources.map((source) => ({
+        sources: visibleSources.map((source) => ({
             id: source.id,
             name: source.name,
             kind: source.id.startsWith("screen:") ? "screen" : "window",

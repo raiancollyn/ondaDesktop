@@ -57,7 +57,9 @@ Implementado:
 
 - shell Electron que carrega `https://onda.dpbr.net` (ou `ONDA_URL`);
 - deep link `onda://sala/<codigo>`;
-- seletor de telas/janelas com thumbnails;
+- seletor de telas/janelas com thumbnails; a aba Janelas lista apenas janelas
+  abertas na barra de tarefas, sem janelas ocultas de aplicativos em segundo
+  plano;
 - seletor de áudio contextual (sem áudio, som do sistema ou som da janela);
 - bridge no `site.js` que substitui `getDisplayMedia` quando
   `window.ondaDesktop` existe;
@@ -389,6 +391,10 @@ JPEG no renderer ainda não sustenta 60 fps em 720p.
 - **Janela:** sem áudio ou som do processo dono da janela. Quando a janela é
   do próprio Onda Desktop, o áudio fica sempre desativado para evitar retorno
   da voz dos participantes.
+
+A lista de janelas usa a enumeração nativa do Windows e só inclui janelas com
+presença na barra de tarefas. Janelas ocultas, ferramentas e aplicativos
+residentes na bandeja não aparecem.
 
 > Em navegadores, o áudio é capturado por processo, não por aba. Uma janela do
 > navegador pode incluir o som de outras janelas do mesmo processo.

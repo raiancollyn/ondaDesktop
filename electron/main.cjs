@@ -14,6 +14,7 @@ const {
     desktopCapturer,
     dialog,
     ipcMain,
+    nativeTheme,
     screen,
     session,
     shell
@@ -295,6 +296,40 @@ function closePicker(selection) {
     pickerWindow = null;
 }
 
+async function readMainTheme() {
+    const fallback = {
+        preference: "system",
+        theme: nativeTheme.shouldUseDarkColors ? "dark" : "light"
+    };
+
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
+        return fallback;
+    }
+
+    try {
+        const value = await mainWindow.webContents.executeJavaScript(
+            `(() => ({
+                preference: document.documentElement.dataset.themePreference ||
+                    localStorage.getItem("onda.theme") || "system",
+                theme: document.documentElement.dataset.theme ||
+                    (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+            }))()`,
+            true
+        );
+
+        const preference = ["light", "dark", "system"].includes(value?.preference)
+            ? value.preference
+            : "system";
+        const theme = value?.theme === "light" || value?.theme === "dark"
+            ? value.theme
+            : (nativeTheme.shouldUseDarkColors ? "dark" : "light");
+        return { preference, theme };
+    } catch (error) {
+        console.warn("Não foi possível ler o tema do site:", error.message);
+        return fallback;
+    }
+}
+
 async function openCapturePicker() {
     if (pickerWindow && !pickerWindow.isDestroyed()) {
         pickerWindow.focus();
@@ -303,6 +338,7 @@ async function openCapturePicker() {
 
     pickerData = null;
     pendingSelection = null;
+    const theme = await readMainTheme();
 
     return new Promise((resolve) => {
         const picker = new BrowserWindow({
@@ -312,9 +348,10 @@ async function openCapturePicker() {
             minHeight: 620,
             parent: mainWindow || undefined,
             modal: Boolean(mainWindow),
+            frame: false,
             show: false,
             title: "Compartilhar no Onda",
-            backgroundColor: "#0c1916",
+            backgroundColor: theme.theme === "light" ? "#f7f3eb" : "#0c1916",
             webPreferences: {
                 preload: path.join(__dirname, "picker-preload.cjs"),
                 contextIsolation: true,
@@ -340,8 +377,25 @@ async function openCapturePicker() {
             finish(pendingSelection);
         });
 
+        picker.on("maximize", () => {
+            if (!picker.isDestroyed()) {
+                picker.webContents.send("onda:picker:window:maximized", true);
+            }
+        });
+
+        picker.on("unmaximize", () => {
+            if (!picker.isDestroyed()) {
+                picker.webContents.send("onda:picker:window:maximized", false);
+            }
+        });
+
         picker.once("ready-to-show", () => picker.show());
-        picker.loadFile(path.join(__dirname, "..", "picker", "index.html"));
+        picker.loadFile(path.join(__dirname, "..", "picker", "index.html"), {
+            query: {
+                theme: theme.theme,
+                preference: theme.preference
+            }
+        });
 
         void buildPickerData()
             .then((data) => {
@@ -981,6 +1035,36 @@ function registerIpc() {
     ipcMain.handle("onda:open-picker", () => openCapturePicker());
     ipcMain.handle("onda:picker:data", () => pickerData);
     ipcMain.handle("onda:capture-selection", () => lastCaptureSelection);
+
+    const fromPickerWindow = (event) =>
+        Boolean(pickerWindow && !pickerWindow.isDestroyed() && event.sender === pickerWindow.webContents);
+
+    ipcMain.on("onda:picker:window:minimize", (event) => {
+        if (fromPickerWindow(event)) {
+            pickerWindow.minimize();
+        }
+    });
+
+    ipcMain.on("onda:picker:window:toggle-maximize", (event) => {
+        if (!fromPickerWindow(event)) {
+            return;
+        }
+
+        if (pickerWindow.isMaximized()) {
+            pickerWindow.unmaximize();
+        } else {
+            pickerWindow.maximize();
+        }
+    });
+
+    ipcMain.on("onda:picker:window:close", (event) => {
+        if (fromPickerWindow(event)) {
+            pickerWindow.close();
+        }
+    });
+
+    ipcMain.handle("onda:picker:window:is-maximized", (event) =>
+        fromPickerWindow(event) && pickerWindow.isMaximized());
 
     ipcMain.handle("onda:audio:start", (event, request) => {
         if (!mainWindow || event.sender !== mainWindow.webContents) {

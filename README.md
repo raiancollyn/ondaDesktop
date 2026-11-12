@@ -61,6 +61,8 @@ Implementado:
   abertas na barra de tarefas, sem janelas ocultas de aplicativos em segundo
   plano;
 - seletor de áudio contextual (sem áudio, som do sistema ou som da janela);
+- janela do seletor com barra personalizada e tema claro/escuro herdado da
+  preferência do site ou do sistema;
 - bridge no `site.js` que substitui `getDisplayMedia` quando
   `window.ondaDesktop` existe;
 - seletor aberto dentro do `setDisplayMediaRequestHandler` do Electron;

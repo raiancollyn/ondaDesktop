@@ -20,8 +20,27 @@
         summary: document.getElementById("selection-summary"),
         confirm: document.getElementById("confirm-button"),
         cancel: document.getElementById("cancel-button"),
-        cancelTop: document.getElementById("cancel-top")
+        titlebar: document.getElementById("window-titlebar")
     };
+
+    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)") ?? null;
+    let themePreference = document.documentElement.dataset.themePreference || "system";
+
+    function applyTheme(theme, preference = themePreference) {
+        themePreference = ["light", "dark", "system"].includes(preference) ? preference : "system";
+        const resolved = themePreference === "system"
+            ? (prefersDark?.matches ? "dark" : "light")
+            : themePreference;
+        document.documentElement.dataset.theme = resolved;
+        document.documentElement.dataset.themePreference = themePreference;
+        document.documentElement.style.colorScheme = resolved;
+    }
+
+    prefersDark?.addEventListener("change", () => {
+        if (themePreference === "system") {
+            applyTheme("system", "system");
+        }
+    });
 
     function selectedSource() {
         return state.data?.sources?.find((source) => source.id === state.selectedSourceId) || null;
@@ -286,6 +305,50 @@
         updateSummary();
     }
 
+    function setMaximized(maximized) {
+        if (elements.titlebar) {
+            elements.titlebar.dataset.maximized = maximized ? "true" : "false";
+        }
+    }
+
+    function bindWindowTitlebar() {
+        const windowApi = window.ondaPicker?.window;
+        if (!elements.titlebar || !windowApi) {
+            return;
+        }
+
+        elements.titlebar.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) {
+                return;
+            }
+
+            const button = target.closest("[data-window]");
+            if (!button) {
+                return;
+            }
+
+            const action = button.getAttribute("data-window");
+            if (action === "minimize") {
+                windowApi.minimize();
+            } else if (action === "maximize") {
+                windowApi.toggleMaximize();
+            } else if (action === "close") {
+                windowApi.close();
+            }
+        });
+
+        elements.titlebar.addEventListener("dblclick", (event) => {
+            const target = event.target;
+            if (target instanceof Element && !target.closest("button")) {
+                windowApi.toggleMaximize();
+            }
+        });
+
+        windowApi.onMaximized(setMaximized);
+        void windowApi.isMaximized().then(setMaximized).catch(() => {});
+    }
+
     function bind() {
         elements.tabs.forEach((tab) => {
             tab.addEventListener("click", () => {
@@ -304,7 +367,7 @@
 
         elements.confirm.addEventListener("click", confirmSelection);
         elements.cancel.addEventListener("click", cancel);
-        elements.cancelTop.addEventListener("click", cancel);
+        bindWindowTitlebar();
         document.addEventListener("keydown", (event) => {
             if (event.key === "Escape") {
                 cancel();
@@ -313,6 +376,7 @@
     }
 
     async function init() {
+        applyTheme(document.documentElement.dataset.theme, themePreference);
         bind();
         if (!window.ondaPicker) {
             showError("A bridge do seletor não está disponível.");

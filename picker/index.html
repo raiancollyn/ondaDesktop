@@ -4,9 +4,49 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Compartilhar no Onda</title>
+    <script>
+        (() => {
+            const params = new URLSearchParams(window.location.search);
+            const preference = ["light", "dark", "system"].includes(params.get("preference"))
+                ? params.get("preference")
+                : "system";
+            const requested = params.get("theme");
+            const theme = requested === "light" || requested === "dark"
+                ? requested
+                : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+            document.documentElement.dataset.theme = theme;
+            document.documentElement.dataset.themePreference = preference;
+            document.documentElement.style.colorScheme = theme;
+        })();
+    </script>
     <link rel="stylesheet" href="picker.css" />
 </head>
 <body>
+    <header class="window-titlebar" id="window-titlebar" data-maximized="false">
+        <div class="window-brand">
+            <svg viewBox="0 0 36 36" aria-hidden="true">
+                <rect width="36" height="36" rx="11" fill="#cdf27c"></rect>
+                <path d="M7.5 21.5c3.4-8.1 6.4-8.1 9.7 0 3.4 8.1 6.4 8.1 9.8 0"
+                      fill="none" stroke="#14231f" stroke-width="2.6" stroke-linecap="round"></path>
+            </svg>
+            <strong>Onda</strong>
+            <span>Compartilhar</span>
+        </div>
+        <div class="window-drag"></div>
+        <div class="window-actions">
+            <button type="button" data-window="minimize" aria-label="Minimizar" title="Minimizar">
+                <svg viewBox="0 0 16 16"><path d="M3 8h10"/></svg>
+            </button>
+            <button type="button" data-window="maximize" aria-label="Maximizar" title="Maximizar">
+                <svg class="window-max-icon" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg>
+                <svg class="window-restore-icon" viewBox="0 0 16 16"><rect x="3" y="5" width="8" height="8" rx="1"/><path d="M5.5 5V3.5h7v7H11"/></svg>
+            </button>
+            <button type="button" data-window="close" aria-label="Fechar" title="Fechar">
+                <svg viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"/></svg>
+            </button>
+        </div>
+    </header>
+
     <header class="picker-header">
         <div class="picker-title">
             <span class="picker-mark" aria-hidden="true">
@@ -21,9 +61,6 @@
                 <h1>O que você quer compartilhar?</h1>
             </div>
         </div>
-        <button type="button" class="icon-button" id="cancel-top" aria-label="Cancelar">
-            <span aria-hidden="true">×</span>
-        </button>
     </header>
 
     <main class="picker-main">

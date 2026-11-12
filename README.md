@@ -34,7 +34,7 @@ Implementado:
 
 Ainda não implementado:
 
-- assinatura de código e auto-update;
+- assinatura de código;
 - múltiplas exclusões de áudio simultâneas;
 - macOS e Linux;
 - validação completa da transmissão em uma sala/LiveKit real.
@@ -208,10 +208,63 @@ Ele gera `release/Onda-Setup-0.1.0.zip` com `instalar.cmd` e `install.ps1`; o
 resultado é equivalente ao instalador, mas sem entrada em Aplicativos
 instalados/desinstalador automático.
 
+## Auto-update
+
+O app usa `electron-updater` com releases do GitHub.
+
+- verifica atualizações 5 segundos depois de abrir e a cada 6 horas;
+- baixa a atualização em segundo plano;
+- pergunta se deve reiniciar;
+- se o usuário escolher “Depois”, aplica ao fechar o app.
+
+O provedor está configurado em `package.json`:
+
+```json
+"publish": [
+  {
+    "provider": "github",
+    "owner": "raiancollyn",
+    "repo": "ondaDesktop",
+    "releaseType": "release"
+  }
+]
+```
+
+O auto-update só funciona em builds empacotados/instalados, não em `npm start`.
+
+## Release no GitHub
+
+O workflow `.github/workflows/release.yml` roda ao enviar uma tag `v*`.
+
+Fluxo:
+
+```powershell
+npm version patch --no-git-tag-version
+git add package.json package-lock.json
+git commit -m "Release v0.1.1"
+git tag v0.1.1
+git push
+git push origin v0.1.1
+```
+
+O workflow:
+
+1. valida a tag contra a versão do `package.json`;
+2. instala Node e .NET;
+3. publica o sidecar self-contained;
+4. gera o NSIS;
+5. publica o instalador, `latest.yml` e blockmap no GitHub Release.
+
+O `latest.yml` é obrigatório para o auto-update. Não publique a release sem ele.
+
+O app ainda não está assinado. Assine o `Onda.exe`, o `OndaCapture.exe` e o
+instalador antes de divulgar o auto-update para evitar piorar o SmartScreen.
+Também é necessário configurar `publisherName`/assinatura para a validação de
+atualização quando o certificado for adicionado.
+
 Ainda falta:
 
-- assinatura de código (SmartScreen);
-- auto-update;
+- assinatura de código (SmartScreen e validação de update);
 - validar a atualização em uma instalação real;
 - instalador ARM64.
 

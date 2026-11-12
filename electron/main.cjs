@@ -1016,6 +1016,67 @@ function createMenu() {
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function setupAutoUpdater() {
+    if (!app.isPackaged) {
+        return;
+    }
+
+    let updater;
+    try {
+        updater = require("electron-updater").autoUpdater;
+    } catch (error) {
+        console.warn("electron-updater indisponível:", error.message);
+        return;
+    }
+
+    updater.autoDownload = true;
+    updater.autoInstallOnAppQuit = true;
+
+    updater.on("error", (error) => {
+        console.error("Falha no auto-update:", error?.message || error);
+    });
+    updater.on("checking-for-update", () => {
+        console.log("Auto-update: verificando atualizações.");
+    });
+    updater.on("update-available", (info) => {
+        console.log("Auto-update: versão disponível:", info.version);
+    });
+    updater.on("update-not-available", () => {
+        console.log("Auto-update: já está na versão mais recente.");
+    });
+    updater.on("update-downloaded", async (info) => {
+        console.log("Auto-update: versão baixada:", info.version);
+        try {
+            const options = {
+                type: "info",
+                title: "Atualização do Onda",
+                message: `A versão ${info.version} do Onda foi baixada.`,
+                detail: "Reinicie agora para aplicar a atualização. Se preferir, ela será aplicada quando você fechar o aplicativo.",
+                buttons: ["Reiniciar agora", "Depois"],
+                defaultId: 0,
+                cancelId: 1
+            };
+            const result = mainWindow
+                ? await dialog.showMessageBox(mainWindow, options)
+                : await dialog.showMessageBox(options);
+            if (result.response === 0) {
+                updater.quitAndInstall();
+            }
+        } catch (error) {
+            console.error("Auto-update: falha ao perguntar sobre a atualização:", error);
+        }
+    });
+
+    const check = () => {
+        updater.checkForUpdatesAndNotify().catch((error) => {
+            console.warn("Auto-update: verificação falhou:", error?.message || error);
+        });
+    };
+
+    setTimeout(check, 5000);
+    setInterval(check, 6 * 60 * 60 * 1000);
+}
+
 function createMainWindow() {
     mainWindow = new BrowserWindow({
         width: 1440,
@@ -1187,6 +1248,7 @@ if (!gotSingleInstanceLock) {
         registerIpc();
         createMenu();
         createMainWindow();
+        setupAutoUpdater();
 
         if (pendingDeepLink) {
             const target = pendingDeepLink;

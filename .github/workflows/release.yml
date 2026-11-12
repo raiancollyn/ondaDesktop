@@ -15,16 +15,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: "10.0.x"
 
@@ -43,13 +43,26 @@ jobs:
       - name: Publish native sidecar
         run: npm run native:publish
 
-      - name: Build installer and publish release
-        run: npx electron-builder --win nsis --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build installer
+        run: npx electron-builder --win nsis --publish never
+
+      - name: Verify generated release files
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter "Onda-Setup-*.exe" | Select-Object -First 1
+          if (-not $installer) {
+            throw "Instalador NSIS não foi gerado."
+          }
+          if ($installer.Length -lt 50MB) {
+            throw "Instalador muito pequeno ($($installer.Length) bytes); o NSIS não concluiu."
+          }
+          if (-not (Test-Path "release/latest.yml")) {
+            throw "latest.yml não foi gerado."
+          }
+          Get-ChildItem release | Select-Object Name, Length
 
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: onda-windows-${{ github.ref_name }}
           if-no-files-found: error
@@ -57,3 +70,38 @@ jobs:
             release/*.exe
             release/latest.yml
             release/*.blockmap
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $files = @()
+          $files += Get-ChildItem release -Filter "*.exe" | Select-Object -ExpandProperty FullName
+          $files += Get-ChildItem release -Filter "latest.yml" | Select-Object -ExpandProperty FullName
+          $files += Get-ChildItem release -Filter "*.blockmap" | Select-Object -ExpandProperty FullName
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Onda $tag" --generate-notes
+            if ($LASTEXITCODE -ne 0) {
+              throw "Não foi possível criar a release $tag."
+            }
+          } else {
+            gh release edit $tag --draft=false --prerelease=false
+          }
+
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            gh release upload $tag @files --clobber
+            if ($LASTEXITCODE -eq 0) {
+              break
+            }
+            if ($attempt -eq 3) {
+              throw "Falha ao enviar os arquivos para a release $tag."
+            }
+            Start-Sleep -Seconds 5
+          }
+
+          gh release edit $tag --draft=false --prerelease=false
+          gh release view $tag

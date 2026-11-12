@@ -35,9 +35,17 @@
         return effectiveKind() === "screen";
     }
 
+    function isOwnWindow() {
+        return !isScreen() && Boolean(selectedSource()?.isOwnApp);
+    }
+
     function canConfirm() {
         if (!state.selectedSourceId) {
             return false;
+        }
+
+        if (isOwnWindow()) {
+            return state.audioMode === "none";
         }
 
         return isScreen()
@@ -55,11 +63,14 @@
 
     function updateSummary() {
         const source = selectedSource();
+        const ownWindow = isOwnWindow();
         elements.summary.textContent = source
             ? `${source.kind === "screen" ? "Tela" : "Janela"}: ${source.name} · ${audioDescription()}`
             : "Selecione uma fonte para continuar.";
         elements.confirm.disabled = !canConfirm();
-        elements.audioBadge.textContent = state.audioMode === "none" ? "Opcional" : "Selecionado";
+        elements.audioBadge.textContent = ownWindow
+            ? "Áudio desativado"
+            : state.audioMode === "none" ? "Opcional" : "Selecionado";
     }
 
     function renderSources() {
@@ -138,6 +149,9 @@
         if (source.kind === "screen" && state.audioMode === "window") {
             state.audioMode = "none";
         }
+        if (source.isOwnApp) {
+            state.audioMode = "none";
+        }
         renderSources();
         renderAudioOptions();
         updateAudioUi();
@@ -145,15 +159,19 @@
 
     function renderAudioOptions() {
         elements.audioOptions.replaceChildren();
-        const options = isScreen()
+        const options = isOwnWindow()
             ? [
-                { value: "none", title: "Sem áudio", help: "Compartilha apenas o vídeo; o microfone continua separado." },
-                { value: "system", title: "Som do sistema", help: "Captura todos os aplicativos, exceto o próprio Onda Desktop." }
+                { value: "none", title: "Sem áudio", help: "O áudio da janela do Onda Desktop fica desativado para evitar retorno da voz." }
             ]
-            : [
-                { value: "none", title: "Sem áudio", help: "Compartilha apenas a janela, sem o som dela." },
-                { value: "window", title: "Som desta janela", help: "Captura o áudio do processo dono da janela escolhida." }
-            ];
+            : isScreen()
+                ? [
+                    { value: "none", title: "Sem áudio", help: "Compartilha apenas o vídeo; o microfone continua separado." },
+                    { value: "system", title: "Som do sistema", help: "Captura todos os aplicativos, exceto o próprio Onda Desktop." }
+                ]
+                : [
+                    { value: "none", title: "Sem áudio", help: "Compartilha apenas a janela, sem o som dela." },
+                    { value: "window", title: "Som desta janela", help: "Captura o áudio do processo dono da janela escolhida." }
+                ];
 
         for (const option of options) {
             const label = document.createElement("label");
@@ -183,10 +201,13 @@
     }
 
     function updateAudioUi() {
+        const ownWindow = isOwnWindow();
         const systemAudio = isScreen() && state.audioMode === "system";
         const windowAudio = !isScreen() && state.audioMode === "window";
-        elements.audioNote.hidden = !(systemAudio || windowAudio);
-        if (systemAudio) {
+        elements.audioNote.hidden = !(ownWindow || systemAudio || windowAudio);
+        if (ownWindow) {
+            elements.audioNote.textContent = "Esta é uma janela do Onda Desktop. O áudio fica desativado para evitar que a voz dos participantes volte pelo compartilhamento.";
+        } else if (systemAudio) {
             elements.audioNote.textContent = "O Onda Desktop é excluído automaticamente do som do sistema para evitar que a voz dos participantes volte pelo compartilhamento.";
         } else if (windowAudio) {
             elements.audioNote.textContent = "Será capturado o áudio do processo dono da janela. Em navegadores, isso pode incluir outras janelas do mesmo processo.";

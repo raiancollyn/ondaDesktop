@@ -74,7 +74,8 @@ Implementado:
 - seletor contextual de áudio:
   - tela inteira: sem áudio ou som do sistema, sempre excluindo automaticamente
     o próprio Onda Desktop para evitar retorno da voz dos participantes;
-  - janela: sem áudio ou som do processo dono da janela;
+  - janela: sem áudio ou som do processo dono da janela; a própria janela do
+    Onda Desktop sempre fica sem áudio;
 - seletor abre imediatamente com estado de carregamento, enquanto as fontes e
   miniaturas (320×180) são carregadas em segundo plano.
 
@@ -385,7 +386,9 @@ JPEG no renderer ainda não sustenta 60 fps em 720p.
 - **Tela inteira:** sem áudio ou som do sistema. O som do sistema exclui
   automaticamente a árvore do Onda Desktop, então a voz dos participantes
   reproduzida no app não volta pelo compartilhamento.
-- **Janela:** sem áudio ou som do processo dono da janela.
+- **Janela:** sem áudio ou som do processo dono da janela. Quando a janela é
+  do próprio Onda Desktop, o áudio fica sempre desativado para evitar retorno
+  da voz dos participantes.
 
 > Em navegadores, o áudio é capturado por processo, não por aba. Uma janela do
 > navegador pode incluir o som de outras janelas do mesmo processo.

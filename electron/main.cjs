@@ -223,6 +223,28 @@ async function buildPickerData() {
         runSidecarList()
     ]);
 
+    const ownSourceIds = new Set();
+    const ownTitles = new Set();
+    for (const window of BrowserWindow.getAllWindows()) {
+        if (!window || window.isDestroyed()) {
+            continue;
+        }
+
+        try {
+            const sourceId = window.webContents.getMediaSourceId();
+            if (sourceId) {
+                ownSourceIds.add(sourceId);
+            }
+        } catch {
+            // The window may disappear while the picker is loading.
+        }
+
+        const title = window.getTitle();
+        if (title) {
+            ownTitles.add(title);
+        }
+    }
+
     captureSourceObjects.clear();
     for (const source of sources) {
         captureSourceObjects.set(source.id, source);
@@ -233,6 +255,7 @@ async function buildPickerData() {
             id: source.id,
             name: source.name,
             kind: source.id.startsWith("screen:") ? "screen" : "window",
+            isOwnApp: ownSourceIds.has(source.id) || ownTitles.has(source.name),
             thumbnail: source.thumbnail.isEmpty() ? null : source.thumbnail.toDataURL(),
             appIcon: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.toDataURL() : null
         })),
@@ -993,6 +1016,12 @@ function registerIpc() {
         const requestedMode = validAudioModes.has(selection.audioMode) ? selection.audioMode : "none";
         let audioMode = requestedMode;
         let process = null;
+
+        if (source.kind === "window" && source.isOwnApp) {
+            // Never capture the Onda Desktop's own window audio: that would
+            // send the participants' voices back into the room.
+            audioMode = "none";
+        }
 
         if (source.kind === "screen") {
             if (audioMode === "window") {

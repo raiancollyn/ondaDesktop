@@ -1454,6 +1454,84 @@ function ensureTray() {
     }
 }
 
+function requestRendererCloseChoice() {
+    return new Promise((resolve) => {
+        if (!mainWindow || mainWindow.isDestroyed() ||
+            mainWindow.webContents.isDestroyed() || mainWindow.webContents.isLoading()) {
+            resolve("native");
+            return;
+        }
+
+        let settled = false;
+        let ackTimer = null;
+
+        const cleanup = () => {
+            if (ackTimer) {
+                clearTimeout(ackTimer);
+                ackTimer = null;
+            }
+            ipcMain.removeListener("onda:close-choice", onChoice);
+            ipcMain.removeListener("onda:close-request-shown", onShown);
+        };
+
+        const finish = (choice) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            cleanup();
+            resolve(choice);
+        };
+
+        const onChoice = (event, choice) => {
+            if (event.sender === mainWindow?.webContents) {
+                finish(choice);
+            }
+        };
+
+        const onShown = (event) => {
+            if (event.sender !== mainWindow?.webContents) {
+                return;
+            }
+
+            if (ackTimer) {
+                clearTimeout(ackTimer);
+                ackTimer = null;
+            }
+        };
+
+        ipcMain.on("onda:close-choice", onChoice);
+        ipcMain.on("onda:close-request-shown", onShown);
+
+        ackTimer = setTimeout(() => finish("native"), 1500);
+        try {
+            mainWindow.webContents.send("onda:close-request");
+        } catch {
+            finish("native");
+        }
+    });
+}
+
+async function showNativeCloseDialog() {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+        type: "question",
+        title: "Onda",
+        message: "Fechar o Onda?",
+        detail:
+            "Você pode fechar o programa ou deixá-lo rodando na bandeja do sistema para continuar em uma chamada em andamento.",
+        buttons: ["Fechar programa", "Manter em segundo plano", "Cancelar"],
+        defaultId: 2,
+        cancelId: 2,
+        noLink: true
+    });
+
+    if (response === 0) {
+        return "close";
+    }
+
+    return response === 1 ? "tray" : "cancel";
+}
+
 async function promptMainWindowClose() {
     if (closeDialogOpen || !mainWindow || mainWindow.isDestroyed()) {
         return;
@@ -1461,25 +1539,18 @@ async function promptMainWindowClose() {
 
     closeDialogOpen = true;
     try {
-        const { response } = await dialog.showMessageBox(mainWindow, {
-            type: "question",
-            title: "Onda",
-            message: "Fechar o Onda?",
-            detail:
-                "Você pode fechar o programa ou deixá-lo rodando na bandeja do sistema para continuar em uma chamada em andamento.",
-            buttons: ["Fechar programa", "Manter em segundo plano", "Cancelar"],
-            defaultId: 2,
-            cancelId: 2,
-            noLink: true
-        });
+        let choice = await requestRendererCloseChoice();
+        if (choice === "native") {
+            choice = await showNativeCloseDialog();
+        }
 
-        if (response === 0) {
+        if (choice === "close") {
             isQuitting = true;
             app.quit();
             return;
         }
 
-        if (response === 1) {
+        if (choice === "tray") {
             if (!ensureTray()) {
                 return;
             }

@@ -6,6 +6,8 @@ module.exports = function installDesktopUi(ipcRenderer) {
     const TITLEBAR_ID = "onda-desktop-chrome";
     let manualUpdateCheck = false;
     let activeDialog = null;
+    let activeDialogDismiss = null;
+    let closeRequestOpen = false;
 
     const styles = `
         html.onda-desktop-shell {
@@ -730,8 +732,9 @@ module.exports = function installDesktopUi(ipcRenderer) {
         });
     }
 
-    function openDialog({ eyebrow, title, message, detail = "", icon = "wave", spinner = false, buttons = [] }) {
+    function openDialog({ eyebrow, title, message, detail = "", icon = "wave", spinner = false, buttons = [], onDismiss = null }) {
         closeDialog();
+        activeDialogDismiss = typeof onDismiss === "function" ? onDismiss : null;
 
         const backdrop = document.createElement("div");
         backdrop.className = "onda-chrome-dialog-backdrop";
@@ -784,6 +787,8 @@ module.exports = function installDesktopUi(ipcRenderer) {
             }
             element.addEventListener("click", () => {
                 if (typeof button.action === "function") {
+                    activeDialogDismiss = null;
+                    closeDialog(false);
                     button.action();
                 } else {
                     closeDialog();
@@ -808,12 +813,63 @@ module.exports = function installDesktopUi(ipcRenderer) {
         }
     }
 
-    function closeDialog() {
+    function closeDialog(notify = true) {
+        const dismiss = activeDialogDismiss;
+        activeDialogDismiss = null;
+
         if (activeDialog) {
             activeDialog.remove();
             activeDialog = null;
         }
+
+        if (notify && typeof dismiss === "function") {
+            try {
+                dismiss();
+            } catch {
+                // The dialog is already being dismissed.
+            }
+        }
     }
+
+    function showCloseRequestDialog() {
+        if (closeRequestOpen) {
+            return;
+        }
+
+        closeRequestOpen = true;
+        const finish = (choice) => {
+            closeRequestOpen = false;
+            ipcRenderer.send("onda:close-choice", choice);
+        };
+
+        openDialog({
+            eyebrow: "FECHAR ONDA",
+            title: "Fechar o Onda?",
+            message: "Você pode fechar o programa ou mantê-lo em segundo plano.",
+            detail:
+                "Se houver uma chamada em andamento, manter o Onda na bandeja do Windows evita interromper o áudio.",
+            onDismiss: () => finish("cancel"),
+            buttons: [
+                {
+                    label: "Fechar programa",
+                    action: () => finish("close")
+                },
+                {
+                    label: "Manter em segundo plano",
+                    primary: true,
+                    action: () => finish("tray")
+                },
+                {
+                    label: "Cancelar",
+                    action: () => finish("cancel")
+                }
+            ]
+        });
+
+        ipcRenderer.send("onda:close-request-shown");
+    }
+
+    ipcRenderer.on("onda:close-request", showCloseRequestDialog);
 
     async function refreshWindowState() {
         try {

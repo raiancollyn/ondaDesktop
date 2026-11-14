@@ -46,6 +46,15 @@ aberto pelo próprio site quando o usuário compartilha uma tela.
 A janela personalizada inclui minimizar, maximizar/restaurar e fechar. O tema
 claro/escuro do site também é aplicado à barra de título, ao menu e aos diálogos.
 
+Ao fechar a janela ou usar **Sair**, o Onda pergunta se o usuário quer:
+
+- **Fechar programa**;
+- **Manter em segundo plano**, escondendo a janela na bandeja do Windows e
+  mantendo a chamada ativa;
+- **Cancelar**.
+
+O ícone da bandeja permite reabrir o Onda ou encerrá-lo de vez.
+
 As atualizações agora são verificadas manualmente pelo menu e o aviso de versão
 baixada é um diálogo estilizado, com opções **Reiniciar agora** e **Depois**, em
 vez do diálogo nativo do Windows. A verificação automática continua acontecendo

@@ -15,9 +15,11 @@ const {
     dialog,
     ipcMain,
     nativeTheme,
+    nativeImage,
     screen,
     session,
-    shell
+    shell,
+    Tray
 } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
@@ -84,6 +86,9 @@ const WINDOW_STATE_PATH = path.join(userDataPath, "window-state.json");
 let lastNormalBounds = null;
 let windowStateSaveTimer = null;
 let windowStateReady = false;
+let tray = null;
+let isQuitting = false;
+let closeDialogOpen = false;
 
 function intersects(a, b) {
     return a.x < b.x + b.width &&
@@ -1146,7 +1151,7 @@ function registerIpc() {
 
     ipcMain.on("onda:quit", (event) => {
         if (fromMainWindow(event)) {
-            app.quit();
+            mainWindow.close();
         }
     });
 
@@ -1393,6 +1398,105 @@ function setupAutoUpdater() {
     setInterval(check, 6 * 60 * 60 * 1000);
 }
 
+function trayIconPath() {
+    return app.isPackaged
+        ? path.join(process.resourcesPath, "icon.png")
+        : path.join(__dirname, "..", "build", "icon.png");
+}
+
+function restoreMainWindow() {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+    }
+
+    mainWindow.setSkipTaskbar(false);
+    if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+}
+
+function ensureTray() {
+    if (tray && !tray.isDestroyed()) {
+        return true;
+    }
+
+    try {
+        const icon = nativeImage.createFromPath(trayIconPath());
+        if (icon.isEmpty()) {
+            console.warn("Ícone da bandeja não encontrado:", trayIconPath());
+            return false;
+        }
+
+        tray = new Tray(icon.resize({ width: 16, height: 16 }));
+        tray.setToolTip("Onda");
+        tray.setContextMenu(Menu.buildFromTemplate([
+            {
+                label: "Abrir Onda",
+                click: restoreMainWindow
+            },
+            { type: "separator" },
+            {
+                label: "Encerrar",
+                click: () => {
+                    isQuitting = true;
+                    app.quit();
+                }
+            }
+        ]));
+        tray.on("double-click", restoreMainWindow);
+        tray.on("click", restoreMainWindow);
+        return true;
+    } catch (error) {
+        console.warn("Não foi possível criar o ícone da bandeja:", error?.message || error);
+        return false;
+    }
+}
+
+async function promptMainWindowClose() {
+    if (closeDialogOpen || !mainWindow || mainWindow.isDestroyed()) {
+        return;
+    }
+
+    closeDialogOpen = true;
+    try {
+        const { response } = await dialog.showMessageBox(mainWindow, {
+            type: "question",
+            title: "Onda",
+            message: "Fechar o Onda?",
+            detail:
+                "Você pode fechar o programa ou deixá-lo rodando na bandeja do sistema para continuar em uma chamada em andamento.",
+            buttons: ["Fechar programa", "Manter em segundo plano", "Cancelar"],
+            defaultId: 2,
+            cancelId: 2,
+            noLink: true
+        });
+
+        if (response === 0) {
+            isQuitting = true;
+            app.quit();
+            return;
+        }
+
+        if (response === 1) {
+            if (!ensureTray()) {
+                return;
+            }
+
+            mainWindow.hide();
+            if (tray && !tray.isDestroyed() && typeof tray.displayBalloon === "function") {
+                tray.displayBalloon({
+                    title: "Onda continua rodando",
+                    content: "A chamada segue ativa na bandeja do sistema."
+                });
+            }
+        }
+    } finally {
+        closeDialogOpen = false;
+    }
+}
+
 function createMainWindow() {
     const startingState = getStartingWindowState();
     lastNormalBounds = startingState.bounds;
@@ -1413,7 +1517,8 @@ function createMainWindow() {
             preload: path.join(__dirname, "preload.cjs"),
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: false
+            sandbox: false,
+            backgroundThrottling: false
         }
     });
 
@@ -1461,12 +1566,21 @@ function createMainWindow() {
     mainWindow.on("resize", updateWindowState);
     mainWindow.on("enter-full-screen", scheduleWindowStateSave);
     mainWindow.on("leave-full-screen", updateWindowState);
-    mainWindow.on("close", () => {
+    mainWindow.on("close", (event) => {
         if (windowStateSaveTimer) {
             clearTimeout(windowStateSaveTimer);
             windowStateSaveTimer = null;
         }
         writeWindowState();
+
+        if (isQuitting) {
+            return;
+        }
+
+        event.preventDefault();
+        void promptMainWindowClose().catch((error) => {
+            console.warn("Não foi possível abrir o diálogo de fechamento:", error?.message || error);
+        });
     });
 
     const showFallback = setTimeout(() => {
@@ -1582,10 +1696,7 @@ function loadDeepLink(rawLink) {
     }
 
     mainWindow.loadURL(roomUrl);
-    if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-    }
-    mainWindow.focus();
+    restoreMainWindow();
 }
 
 if (process.defaultApp && process.argv.length >= 2) {
@@ -1600,10 +1711,7 @@ if (!gotSingleInstanceLock) {
 } else {
     app.on("second-instance", (_event, argv) => {
         if (mainWindow) {
-            if (mainWindow.isMinimized()) {
-                mainWindow.restore();
-            }
-            mainWindow.focus();
+            restoreMainWindow();
         }
 
         const deepLink = argv.find((argument) => argument.startsWith(`${PROTOCOL}://`));
@@ -1618,6 +1726,7 @@ if (!gotSingleInstanceLock) {
         registerIpc();
         createMenu();
         createMainWindow();
+        ensureTray();
         setupAutoUpdater();
 
         if (pendingDeepLink) {
@@ -1635,11 +1744,19 @@ if (!gotSingleInstanceLock) {
 }
 
 app.on("before-quit", () => {
+    isQuitting = true;
     writeWindowState();
     stopAllAudioCaptures();
     stopAllThumbnailCaptures();
     stopAllVideoCaptures();
     console.log("Encerrando o Onda Desktop.");
+});
+
+app.on("will-quit", () => {
+    if (tray && !tray.isDestroyed()) {
+        tray.destroy();
+        tray = null;
+    }
 });
 
 app.on("window-all-closed", () => {

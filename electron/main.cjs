@@ -1237,12 +1237,17 @@ function registerIpc() {
         }
 
         const iconPath = app.isPackaged
-            ? path.join(process.resourcesPath, "icon.png")
-            : path.join(__dirname, "..", "build", "icon.png");
+            ? path.join(process.resourcesPath, "notification.png")
+            : path.join(__dirname, "..", "build", "notification.png");
+        const iconImage = fs.existsSync(iconPath)
+            ? nativeImage.createFromPath(iconPath)
+            : null;
         const notification = new Notification({
             title: `${sender} · Onda`,
             body: text.length > 180 ? `${text.slice(0, 177)}...` : text,
-            icon: fs.existsSync(iconPath) ? iconPath : undefined,
+            icon: iconImage && !iconImage.isEmpty()
+                ? iconImage.resize({ width: 64, height: 64, quality: "best" })
+                : undefined,
             silent: true
         });
 

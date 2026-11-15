@@ -1111,6 +1111,15 @@ function registerIpc() {
             return false;
         }
 
+        if (!payload?.force &&
+            mainWindow &&
+            !mainWindow.isDestroyed() &&
+            mainWindow.isVisible() &&
+            mainWindow.isFocused() &&
+            !mainWindow.isMinimized()) {
+            return false;
+        }
+
         const sender = String(payload?.sender || "Nova mensagem").slice(0, 120);
         const text = String(payload?.text || "").slice(0, 500);
         const roomCode = String(payload?.roomId || "");

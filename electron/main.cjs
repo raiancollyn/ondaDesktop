@@ -11,6 +11,7 @@ const {
     app,
     BrowserWindow,
     Menu,
+    Notification,
     desktopCapturer,
     dialog,
     ipcMain,
@@ -1104,6 +1105,56 @@ function registerIpc() {
         siteUrl: APP_URL
     }));
 
+    const activeChatNotifications = new Set();
+    ipcMain.handle("onda:notify-chat", (event, payload) => {
+        if (!fromMainWindow(event) || !Notification.isSupported()) {
+            return false;
+        }
+
+        const sender = String(payload?.sender || "Nova mensagem").slice(0, 120);
+        const text = String(payload?.text || "").slice(0, 500);
+        const roomCode = String(payload?.roomId || "");
+        if (!text) {
+            return false;
+        }
+
+        const iconPath = app.isPackaged
+            ? path.join(process.resourcesPath, "icon.png")
+            : path.join(__dirname, "..", "build", "icon.png");
+        const notification = new Notification({
+            title: `${sender} · Onda`,
+            body: text.length > 180 ? `${text.slice(0, 177)}...` : text,
+            icon: fs.existsSync(iconPath) ? iconPath : undefined,
+            silent: true
+        });
+
+        activeChatNotifications.add(notification);
+        notification.on("close", () => activeChatNotifications.delete(notification));
+        notification.on("click", () => {
+            activeChatNotifications.delete(notification);
+            if (!mainWindow || mainWindow.isDestroyed()) {
+                createMainWindow();
+            }
+
+            if (!mainWindow || mainWindow.isDestroyed()) {
+                return;
+            }
+
+            if (mainWindow.isMinimized()) {
+                mainWindow.restore();
+            }
+            mainWindow.show();
+            mainWindow.focus();
+            const currentUrl = mainWindow.webContents.getURL();
+            if (roomCode && !currentUrl.includes(`/sala/${encodeURIComponent(roomCode)}`)) {
+                mainWindow.loadURL(`${APP_URL}/sala/${encodeURIComponent(roomCode)}`);
+            }
+        });
+
+        notification.show();
+        return true;
+    });
+
     ipcMain.on("onda:window:minimize", (event) => {
         if (fromMainWindow(event)) {
             mainWindow.minimize();
@@ -1792,6 +1843,9 @@ if (!gotSingleInstanceLock) {
     });
 
     app.whenReady().then(() => {
+        if (process.platform === "win32") {
+            app.setAppUserModelId("net.dpbr.onda");
+        }
         console.log(`Onda Desktop ${app.getVersion()} · Electron ${process.versions.electron}`);
         console.log("Abrindo site:", APP_URL);
         registerIpc();

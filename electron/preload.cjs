@@ -5,6 +5,14 @@ contextBridge.exposeInMainWorld("ondaDesktop", Object.freeze({
     isDesktop: true,
     platform: process.platform,
     getAppInfo: () => ipcRenderer.invoke("onda:get-app-info"),
+    openPip: (options) => ipcRenderer.invoke("onda:pip:open", options),
+    sendPipFrame: (dataUrl) => ipcRenderer.send("onda:pip:frame", dataUrl),
+    closePip: () => ipcRenderer.send("onda:pip:close"),
+    onPipClosed: (callback) => {
+        const listener = () => callback();
+        ipcRenderer.on("onda:pip:closed", listener);
+        return () => ipcRenderer.removeListener("onda:pip:closed", listener);
+    },
     openCapturePicker: () => ipcRenderer.invoke("onda:open-picker"),
     listProcesses: () => ipcRenderer.invoke("onda:list-processes"),
     getCaptureSelection: () => ipcRenderer.invoke("onda:capture-selection"),

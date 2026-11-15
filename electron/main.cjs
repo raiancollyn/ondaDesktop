@@ -75,6 +75,7 @@ const APP_URL = (process.env.ONDA_URL || DEFAULT_URL).replace(/\/+$/, "");
 const SIDECAR_EXE = process.platform === "win32" ? "OndaCapture.exe" : "OndaCapture";
 
 let mainWindow = null;
+let pipWindow = null;
 let pickerWindow = null;
 let autoUpdaterInstance = null;
 let pickerData = null;
@@ -1173,9 +1174,95 @@ function openNativeShare(payload) {
     });
 }
 
+function ensurePipWindow(options = {}) {
+    if (pipWindow && !pipWindow.isDestroyed()) {
+        return pipWindow;
+    }
+
+    const display = screen.getPrimaryDisplay();
+    const workArea = display.workArea;
+    const width = Math.max(280, Math.min(720, Math.round(Number(options.width) || 480)));
+    const height = Math.max(180, Math.min(480, Math.round(Number(options.height) || 300)));
+
+    pipWindow = new BrowserWindow({
+        width,
+        height,
+        x: Math.round(workArea.x + workArea.width - width - 24),
+        y: Math.round(workArea.y + workArea.height - height - 24),
+        minWidth: 280,
+        minHeight: 180,
+        frame: false,
+        show: false,
+        resizable: true,
+        movable: true,
+        alwaysOnTop: true,
+        skipTaskbar: true,
+        title: "Onda",
+        backgroundColor: "#07110e",
+        webPreferences: {
+            preload: path.join(__dirname, "pip-preload.cjs"),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: false,
+            backgroundThrottling: false
+        }
+    });
+
+    pipWindow.setAlwaysOnTop(true, "floating");
+    pipWindow.setAspectRatio(16 / 9, { width: 0, height: 0 });
+    pipWindow.loadFile(path.join(__dirname, "pip.html"));
+
+    pipWindow.once("ready-to-show", () => {
+        if (!pipWindow || pipWindow.isDestroyed()) {
+            return;
+        }
+        pipWindow.showInactive();
+    });
+
+    pipWindow.on("closed", () => {
+        pipWindow = null;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send("onda:pip:closed");
+        }
+    });
+
+    return pipWindow;
+}
+
 function registerIpc() {
     const fromMainWindow = (event) =>
         Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents);
+
+    ipcMain.handle("onda:pip:open", (event, options) => {
+        if (!fromMainWindow(event)) {
+            return false;
+        }
+        const window = ensurePipWindow(options);
+        return Boolean(window && !window.isDestroyed());
+    });
+
+    ipcMain.on("onda:pip:frame", (event, dataUrl) => {
+        if (!fromMainWindow(event) ||
+            typeof dataUrl !== "string" ||
+            !dataUrl.startsWith("data:image/") ||
+            dataUrl.length > 8_000_000) {
+            return;
+        }
+        if (pipWindow && !pipWindow.isDestroyed()) {
+            pipWindow.webContents.send("onda:pip:frame", dataUrl);
+        }
+    });
+
+    ipcMain.on("onda:pip:close", (event) => {
+        const fromPip = Boolean(pipWindow && !pipWindow.isDestroyed() &&
+            event.sender === pipWindow.webContents);
+        if (!fromMainWindow(event) && !fromPip) {
+            return;
+        }
+        if (pipWindow && !pipWindow.isDestroyed()) {
+            pipWindow.close();
+        }
+    });
 
     ipcMain.handle("onda:get-app-info", () => ({
         version: app.getVersion(),
@@ -1889,6 +1976,9 @@ function createMainWindow() {
         stopAllAudioCaptures();
         stopAllThumbnailCaptures();
         stopAllVideoCaptures();
+        if (pipWindow && !pipWindow.isDestroyed()) {
+            pipWindow.close();
+        }
         mainWindow = null;
     });
 

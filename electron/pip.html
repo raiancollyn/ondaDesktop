@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="color-scheme" content="dark">
+    <title>Onda</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #07110e;
+            font-family: "DM Sans", "Segoe UI", system-ui, sans-serif;
+        }
+        .pip-window {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #07110e;
+            border: 1px solid rgba(205, 242, 124, 0.16);
+            border-radius: 10px;
+        }
+        .pip-frame {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            user-select: none;
+            -webkit-user-drag: none;
+            pointer-events: none;
+        }
+        .pip-chrome {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 2;
+            height: 2.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 0.55rem 0 0.8rem;
+            background: linear-gradient(rgba(7, 17, 14, 0.72), transparent);
+            opacity: 0;
+            transition: opacity 160ms ease;
+            -webkit-app-region: drag;
+        }
+        .pip-window:hover .pip-chrome { opacity: 1; }
+        .pip-brand {
+            color: rgba(247, 243, 235, 0.82);
+            font-size: 0.66rem;
+            font-weight: 800;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+        }
+        .pip-close {
+            width: 1.45rem;
+            height: 1.45rem;
+            display: grid;
+            place-items: center;
+            padding: 0;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 50%;
+            background: rgba(7, 17, 14, 0.52);
+            color: rgba(247, 243, 235, 0.82);
+            font: 400 1rem/1 "Segoe UI", sans-serif;
+            cursor: pointer;
+            -webkit-app-region: no-drag;
+        }
+        .pip-close:hover { background: rgba(205, 242, 124, 0.18); }
+        .pip-placeholder {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: rgba(247, 243, 235, 0.38);
+            font-size: 0.72rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .pip-frame[src] + .pip-placeholder { display: none; }
+    </style>
+</head>
+<body>
+    <div class="pip-window">
+        <img class="pip-frame" id="pip-frame" alt="">
+        <div class="pip-placeholder">Onda</div>
+        <div class="pip-chrome">
+            <span class="pip-brand">Onda</span>
+            <button class="pip-close" id="pip-close" type="button" aria-label="Fechar PiP">×</button>
+        </div>
+    </div>
+    <script src="pip.js"></script>
+</body>
+</html>

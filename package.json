@@ -1,6 +1,6 @@
 {
   "name": "onda-desktop",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "private": true,
   "author": "Onda",
   "license": "MIT",
@@ -59,6 +59,10 @@
       {
         "from": "build/notification.png",
         "to": "notification.png"
+      },
+      {
+        "from": "build/notification.ico",
+        "to": "notification.ico"
       },
       {
         "from": "electron/share-helper.cjs",

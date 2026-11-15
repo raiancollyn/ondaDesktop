@@ -1,6 +1,6 @@
 {
   "name": "onda-desktop",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "private": true,
   "author": "Onda",
   "license": "MIT",
@@ -29,6 +29,7 @@
     "productName": "Onda",
     "copyright": "Onda",
     "asar": true,
+    "npmRebuild": false,
     "directories": {
       "output": "release",
       "buildResources": "build"

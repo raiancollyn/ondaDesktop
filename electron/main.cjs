@@ -26,6 +26,13 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
+let nativeShare = null;
+try {
+    nativeShare = require("electron-native-share");
+} catch (error) {
+    console.warn("Compartilhamento nativo indisponível:", error.message);
+}
+
 // Em alguns Windows o sandbox do Chromium não consegue criar o processo de GPU
 // (SBOX_ERROR_CREATE_PROCESS, código 18). O launcher inicia o Electron com
 // --no-sandbox; veja desktop/README.md. O site carregado é apenas o domínio
@@ -1104,6 +1111,35 @@ function registerIpc() {
         isPackaged: app.isPackaged,
         siteUrl: APP_URL
     }));
+
+    ipcMain.handle("onda:share-link", async (event, payload) => {
+        if (!fromMainWindow(event)) {
+            return { ok: false, reason: "invalid-origin" };
+        }
+
+        if (!nativeShare?.canShare?.()) {
+            return { ok: false, reason: "unsupported" };
+        }
+
+        const url = String(payload?.url || "");
+        if (!/^https?:\/\//i.test(url)) {
+            return { ok: false, reason: "invalid-url" };
+        }
+
+        try {
+            const result = await nativeShare.share({
+                title: String(payload?.title || "Onda"),
+                text: String(payload?.text || ""),
+                url
+            }, mainWindow);
+            return result?.method === "cancelled"
+                ? { ok: false, cancelled: true }
+                : { ok: result?.method === "native" };
+        } catch (error) {
+            console.warn("Falha ao abrir o compartilhamento do Windows:", error);
+            return { ok: false, reason: "failed", error: String(error?.message || error) };
+        }
+    });
 
     const activeChatNotifications = new Set();
     ipcMain.handle("onda:notify-chat", (event, payload) => {

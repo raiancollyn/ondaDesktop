@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("ondaDesktop", Object.freeze({
     openCapturePicker: () => ipcRenderer.invoke("onda:open-picker"),
     listProcesses: () => ipcRenderer.invoke("onda:list-processes"),
     getCaptureSelection: () => ipcRenderer.invoke("onda:capture-selection"),
+    shareLink: (payload) => ipcRenderer.invoke("onda:share-link", payload),
     notifyChat: (payload) => ipcRenderer.invoke("onda:notify-chat", payload),
     startAudio: (request) => ipcRenderer.invoke("onda:audio:start", request),
     stopAudio: (captureId) => ipcRenderer.invoke("onda:audio:stop", captureId),

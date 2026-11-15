@@ -1,6 +1,6 @@
 {
   "name": "onda-desktop",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "author": "Onda",
   "license": "MIT",
@@ -36,7 +36,11 @@
     "files": [
       "electron/**/*",
       "picker/**/*",
+      "node_modules/electron-native-share/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/electron-native-share/**/*.node"
     ],
     "extraResources": [
       {
@@ -101,6 +105,7 @@
     ]
   },
   "dependencies": {
+    "electron-native-share": "^0.1.1",
     "electron-updater": "^6.8.11"
   }
 }

@@ -20,18 +20,14 @@ const {
     screen,
     session,
     shell,
-    Tray
+    Tray,
+    utilityProcess
 } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-let nativeShare = null;
-try {
-    nativeShare = require("electron-native-share");
-} catch (error) {
-    console.warn("Compartilhamento nativo indisponível:", error.message);
-}
+let shareHelperBusy = false;
 
 // Em alguns Windows o sandbox do Chromium não consegue criar o processo de GPU
 // (SBOX_ERROR_CREATE_PROCESS, código 18). O launcher inicia o Electron com
@@ -1100,6 +1096,83 @@ function resolveWindowProcess(sourceId) {
     });
 }
 
+function openNativeShare(payload) {
+    return new Promise((resolve) => {
+        const helperPath = app.isPackaged
+            ? path.join(process.resourcesPath, "share-helper.cjs")
+            : path.join(__dirname, "share-helper.cjs");
+
+        if (!fs.existsSync(helperPath)) {
+            resolve({ ok: false, reason: "helper-missing" });
+            return;
+        }
+
+        let child;
+        try {
+            child = utilityProcess.fork(helperPath, [], {
+                serviceName: "OndaShare"
+            });
+        } catch (error) {
+            resolve({ ok: false, reason: "helper-failed", error: String(error) });
+            return;
+        }
+
+        let settled = false;
+        let dismissTimer = null;
+        const finish = (result) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(timeout);
+            resolve(result);
+            // A folha do Windows pertence ao processo auxiliar. Mantenha-o vivo
+            // enquanto o usuário escolhe um destino, mas não para sempre.
+            dismissTimer = setTimeout(() => {
+                try {
+                    child.kill();
+                } catch {
+                    // O helper já saiu.
+                }
+            }, 120000);
+            dismissTimer.unref?.();
+        };
+
+        const timeout = setTimeout(() => {
+            finish({ ok: false, reason: "timeout" });
+            try {
+                child.kill();
+            } catch {
+                // O helper já saiu.
+            }
+        }, 30000);
+        timeout.unref?.();
+
+        child.on("message", (message) => {
+            finish(message && typeof message === "object"
+                ? message
+                : { ok: false, reason: "invalid-response" });
+        });
+        child.on("exit", (code) => {
+            if (!settled) {
+                finish({ ok: false, reason: "helper-crashed", code });
+            }
+        });
+
+        try {
+            child.postMessage({
+                id: Date.now(),
+                windowHandle: mainWindow.getNativeWindowHandle().toString("base64"),
+                title: payload.title,
+                text: payload.text,
+                url: payload.url
+            });
+        } catch (error) {
+            finish({ ok: false, reason: "helper-failed", error: String(error) });
+        }
+    });
+}
+
 function registerIpc() {
     const fromMainWindow = (event) =>
         Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents);
@@ -1117,27 +1190,27 @@ function registerIpc() {
             return { ok: false, reason: "invalid-origin" };
         }
 
-        if (!nativeShare?.canShare?.()) {
-            return { ok: false, reason: "unsupported" };
-        }
-
         const url = String(payload?.url || "");
         if (!/^https?:\/\//i.test(url)) {
             return { ok: false, reason: "invalid-url" };
         }
 
+        if (shareHelperBusy) {
+            return { ok: false, reason: "busy" };
+        }
+
+        shareHelperBusy = true;
         try {
-            const result = await nativeShare.share({
+            const result = await openNativeShare({
                 title: String(payload?.title || "Onda"),
                 text: String(payload?.text || ""),
                 url
-            }, mainWindow);
-            return result?.method === "cancelled"
+            });
+            return result?.cancelled
                 ? { ok: false, cancelled: true }
-                : { ok: result?.method === "native" };
-        } catch (error) {
-            console.warn("Falha ao abrir o compartilhamento do Windows:", error);
-            return { ok: false, reason: "failed", error: String(error?.message || error) };
+                : result;
+        } finally {
+            shareHelperBusy = false;
         }
     });
 

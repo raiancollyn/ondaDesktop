@@ -388,6 +388,31 @@ module.exports = function installDesktopUi(ipcRenderer) {
             background: rgba(20, 35, 31, 0.06);
         }
 
+        .onda-chrome-dialog-actions button:not(.is-primary) {
+            border-color: rgba(20, 35, 31, 0.2);
+            background: rgba(20, 35, 31, 0.035);
+        }
+
+        .onda-chrome-dialog-actions button:not(.is-primary):hover {
+            border-color: rgba(20, 35, 31, 0.3);
+            background: rgba(20, 35, 31, 0.07);
+        }
+
+        html[data-theme="dark"] .onda-chrome-dialog-actions button:not(.is-primary) {
+            border-color: rgba(247, 243, 235, 0.22);
+            background: rgba(255, 255, 255, 0.045);
+        }
+
+        html[data-theme="dark"] .onda-chrome-dialog-actions button:not(.is-primary):hover {
+            border-color: rgba(247, 243, 235, 0.34);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .onda-chrome-dialog-actions button:focus-visible {
+            outline: 2px solid rgba(205, 242, 124, 0.9);
+            outline-offset: 2px;
+        }
+
         .onda-chrome-dialog-actions button.is-primary {
             border-color: #cdf27c;
             background: #cdf27c;
